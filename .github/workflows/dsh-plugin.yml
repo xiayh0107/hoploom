@@ -35,11 +35,15 @@ jobs:
           node-version: "22.22.3"
           cache: npm
           cache-dependency-path: dsh-hoploom/package-lock.json
-      - run: python -m pip install ./ssh-server-manager
+      - run: python -m pip install build ./ssh-server-manager
       - run: npm ci --ignore-scripts --prefix dsh-hoploom
+      - run: npm run build:backend --prefix dsh-hoploom
+        env:
+          HOPLOOM_BUILD_PYTHON: python
       - run: npm run check --prefix dsh-hoploom
         env:
           HOPLOOM_TEST_PYTHON: python
+          HOPLOOM_TEST_BOOTSTRAP: "1"
       - run: npm pack ./dsh-hoploom --pack-destination dsh-hoploom
       - uses: actions/upload-artifact@v4
         with:

@@ -16,7 +16,8 @@ See `ssh-server-manager/docs/migration.md`; do not globally replace them.
   UI + OS-keychain vault, shipped as a Python package and as an Agent Skill.
 - `website/` — the landing page published by the `pages.yml` workflow.
 - `dsh-hoploom/` — the independently versioned npm plugin for DeepSeek Harness.
-  It uses the official dsh MCP client and the existing local Hoploom backend.
+  It uses the official dsh MCP client, reuses existing Hoploom, or prepares its
+  bundled backend in a private runtime. A native client adds the sidebar panel.
 - `install.sh` / `install.ps1` — one-line agent-skill installers users pipe
   from GitHub; treat their public URLs as a stable contract.
 - Gitignored directories at the repo root are private local workspaces:
@@ -117,11 +118,15 @@ against command coverage.
 
 ## DeepSeek Harness plugin
 
-Work from `dsh-hoploom/`: `npm ci`, `npm run build`, then
+Work from `dsh-hoploom/`: `npm ci`, `npm run build`, `npm run build:backend`, then
 `HOPLOOM_TEST_PYTHON=/absolute/path/to/python npm test`. The Python environment
-must have Hoploom's dependencies installed. Integration tests use isolated state;
+must have `build` and Hoploom's dependencies installed. Integration tests use isolated state;
 without that variable they skip. `npm pack` builds the release tarball, and the
-`files` allowlist excludes source, tests, dependencies and local state.
+`files` allowlist excludes source, tests, dependencies and local state. The backend
+wheel is built from tracked public source only. Run `HOPLOOM_TEST_BOOTSTRAP=1`
+with tests to verify managed Python installation and offline cache reuse. Keep
+installer downloads checksum-pinned, cancellation scoped to owned processes,
+and the sidebar/recovery route available while setup runs or fails.
 
 Keep MCP schemas, SSH policy and vault operations in the Python backend. The
 adapter discovers tools through the official bridge; it must not bypass disabled

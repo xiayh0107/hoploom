@@ -11,11 +11,15 @@ export interface Config {
   dataDir: string
   runtimeDir: string
   toolCallTimeoutMs: number
+  autoInstall: boolean
+  managedDir: string
 }
 
 export const Config: Schema<Config> = Schema.object({
-  command: Schema.string().default('hoploom').description('Hoploom executable or absolute path. The default searches PATH and standard local install locations. Install Hoploom separately; no shell command or secrets.'),
+  command: Schema.string().default('hoploom').description('Hoploom executable or absolute path. The default reuses an existing install or automatically prepares a private runtime. No shell command or secrets.'),
   commandArgs: Schema.array(String).default([]).description('Arguments before mcp serve; for example the Hoploom Python launcher path.'),
+  autoInstall: Schema.boolean().default(true).description('Automatically prepare a private Hoploom runtime when the default command is unavailable. Existing installations are reused.'),
+  managedDir: Schema.string().default('').description('Optional absolute directory for the plugin-managed runtime. Host inventory and credentials keep their existing locations.'),
   allowRemote: Schema.boolean().default(false).description('Expose test_host, which contacts a selected SSH host.'),
   allowExec: Schema.boolean().default(false).description('Expose run_command. Requires at least one allowed command pattern.'),
   allowCommands: Schema.array(String).default([]).description('Hoploom command allowlist globs, for example uptime or journalctl -u *. Never put secrets here.'),
@@ -33,6 +37,9 @@ export function bridgeConfig(input: Config): StdioConfig {
   }
   if (config.commandArgs.some(arg => arg.includes('\0'))) {
     throw new Error('dsh-hoploom: commandArgs cannot contain NUL characters.')
+  }
+  if (config.managedDir && (config.managedDir.includes('\0') || !isAbsolute(config.managedDir))) {
+    throw new Error('dsh-hoploom: managedDir must be an absolute path.')
   }
   if (config.allowCommands.some(pattern => !pattern.trim() || pattern.includes('\0'))) {
     throw new Error('dsh-hoploom: allowed command patterns must be non-empty and contain no NUL.')

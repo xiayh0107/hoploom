@@ -366,9 +366,11 @@ DeepSeek Harness can install the `dsh-hoploom` adapter with
 It runs a local Hoploom executable with the policy below and defaults to
 metadata queries. Configure remote access in the plugin settings, never by
 working around a missing tool. See [the plugin guide](../docs/dsh-plugin.md).
-Plugin 0.1.1 searches standard install locations and checks `mcp serve --help`.
-On startup failure, install/update Hoploom or set an absolute `command`, then
-re-enable the component. Old `serverctl 0.7.0` does not support MCP.
+Plugin 0.2.0 reuses an existing installation or automatically prepares its bundled
+backend and Python. The Hoploom sidebar shows progress, retry/cancel and a host
+manager button. In terminal sessions, `hoploom_setup` accepts `action=status`,
+`prepare` or `cancel`. Report setup status once; do not busy-poll. An explicit
+custom command must support MCP; old `serverctl 0.7.0` does not.
 
 ```bash
 ./scripts/hoploom mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]

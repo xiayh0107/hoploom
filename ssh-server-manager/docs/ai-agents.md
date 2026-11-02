@@ -285,16 +285,18 @@ prose.
 ## As an MCP server (optional)
 
 DeepSeek Harness has a dedicated `dsh-hoploom` plugin. Install it with
-`dsh plugin --profile web add dsh-hoploom` (or the `tui` profile), after
-installing Hoploom locally. It registers namespaced MCP tools and target-first
+`dsh plugin --profile web add dsh-hoploom` (or the `tui` profile). Version 0.2.0
+reuses existing Hoploom or prepares its bundled backend and Python automatically. It registers namespaced MCP tools and target-first
 interaction rules. Default access is local metadata; host checks and command
 allowlists are explicit settings in the plugin's configuration form. Do not
 bypass disabled tools through a shell. See [the plugin guide](dsh-plugin.md)
 for installation, executable paths and the security boundary.
-Plugin 0.1.1 finds standard local installations even with a restricted desktop
-PATH, and checks `mcp serve --help` before connecting. If startup fails, update
-the backend or set its absolute `command` path, then re-enable the component;
-old `serverctl 0.7.0` lacks the required MCP interface.
+The Hoploom sidebar remains available during setup and offers retry, cancel and
+an explicit host-manager button. If MCP tools are not ready, call `hoploom_setup`
+with `action=status` and report once, without busy polling. On request, use
+`action=prepare` to retry or `action=cancel` to stop preparation. Explicit custom
+commands are honored and must support MCP. Credential entry stays in the human's
+local host manager; never relay launch URLs or tokens.
 
 The Skill is still the recommended path: an agent that can read `SKILL.md` gets
 the reasoning, the interaction rules, and every command. The MCP wrapper exists

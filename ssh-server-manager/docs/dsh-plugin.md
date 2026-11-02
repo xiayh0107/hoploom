@@ -1,92 +1,126 @@
 # DeepSeek Harness plugin
 
-`dsh-hoploom` connects DeepSeek Harness to the local Hoploom installation through
-stdio MCP. The plugin package lives in [`dsh-hoploom/`](https://github.com/xiayh0107/hoploom/tree/main/dsh-hoploom)
-and has its own version, currently 0.1.1. It supports dsh 0.2.1-rc.5.
+`dsh-hoploom` connects DeepSeek Harness to Hoploom through its official stdio
+MCP bridge. Version **0.2.0** supports **dsh 0.2.1-rc.5** and adds automatic
+backend preparation plus a native sidebar panel.
 
 ## Install and use
 
-Install Hoploom using the [source installer](installation.md), or select an
-existing installation. In the terminal that starts the dsh backend, verify
-`hoploom --version` and `hoploom mcp serve --help`. Upgrade the backend if either
-fails; legacy `serverctl 0.7.0` has no MCP interface. The npm plugin does not install the
-Python backend. A browser on another machine still operates the backend machine's
-inventory and OS account.
+You do not need to install Hoploom or Python first. In dsh's **Plugins → Add
+plugin**, search for `dsh-hoploom`, or run:
 
 ```sh
 dsh plugin --profile web add dsh-hoploom
 dsh web
 ```
 
-The dsh Plugins page can also install the package by name. For a downloaded
-release artifact, substitute its absolute `.tgz` path for `dsh-hoploom`.
-Use the `tui` profile instead of `web` for terminal sessions.
+Use `tui` for terminal sessions. A downloaded release's absolute `.tgz` path also
+works. For CLI changes to the `desktop` profile, fully quit the desktop app first;
+use its Plugins page while it is open.
 
-Ask the agent to list saved hosts, show a host's route or retrieve its saved
-working directories. These actions query local metadata. They do not check
-reachability or open a network connection to a host.
+Click **Hoploom** in the sidebar. The plugin reuses a compatible existing install,
+or prepares its bundled Hoploom 0.11.0 and private Python runtime in the background.
+The first preparation needs internet access and may take a few minutes. The panel
+shows progress and offers cancel/retry, even after a preparation failure.
+Click **Open host manager** to add hosts and credentials, then ask the agent to
+list hosts, resolve jump routes or find saved working directories.
 
-The plugin defaults to six tools: `list_hosts`, `host_route`, `saved_paths`,
-`host_skills`, `list_tunnels` and `runtime_capabilities`, under the
-`mcp__hoploom__` prefix. In **Plugins → dsh-hoploom → Configuration**, enable
-`allowRemote` for `test_host`; enable `allowExec` and specify `allowCommands`
-for `run_command`. For example, `["uptime", "df -h"]` permits those commands.
-These are the backend's existing glob rules, not a shell sandbox: allowing
-an interpreter permits its programs, and `*` permits arbitrary commands.
+Automatic preparation supports macOS, Windows and Linux (glibc), on x64 and
+ARM64. It downloads checksum-pinned uv from Astral's official GitHub release,
+uses uv-managed Python, and installs dependencies from PyPI. The Hoploom wheel
+is included in the npm package. No Git checkout, system Python change or shell
+profile edit is required. Verified completed environments are reused offline.
+OpenSSH and a working OS vault are still needed for their respective SSH and
+credential operations.
 
-The `command` setting selects the Hoploom executable. `commandArgs` supplies
-separate arguments before `mcp serve` when a Python launcher is needed.
-On Windows, use `hoploom.cmd`, `hoploom.exe`, or a Python executable plus the absolute
-`scripts/hoploom.py` argument. Existing `serverctl mcp serve` installations
-can select `serverctl` explicitly. Optional absolute `dataDir` and `runtimeDir`
-settings isolate state. No setting should contain a credential value.
+The plugin operates on the **dsh backend machine**, under its OS account. This
+also applies when the browser is elsewhere. The host-manager button opens that
+machine's browser, and the management server remains loopback-only. The plugin
+panel never receives the secret launch URL. Opening the panel alone does not
+start this UI or connect to SSH hosts. A pre-existing UI is reused; unloading
+only stops a UI the plugin itself started.
 
-### Desktop startup and missing backends
+## Tools and configuration
 
-Version 0.1.0 reports `spawn hoploom ENOENT` when dsh cannot find the executable.
-Install or update Hoploom, check `hoploom mcp serve --help`, set `command` to an
-absolute executable path, then re-enable the component. The macOS source installer
-creates `~/.local/bin/hoploom`; expand `~` before entering the setting. Merely
-changing the command to an old `serverctl` without MCP support does not fix it.
+The six default tools are `list_hosts`, `host_route`, `saved_paths`, `host_skills`,
+`list_tunnels` and `runtime_capabilities`, all under `mcp__hoploom__`.
+They query local metadata, without testing remote reachability.
+`hoploom_setup` provides `action=status`, `prepare` and `cancel`, including when
+the MCP backend is unavailable. Agents should report progress once, without
+busy polling, and retry or cancel when asked.
 
-Since 0.1.1, the default `hoploom` command searches absolute PATH entries followed
-by `~/.local/bin`, macOS Homebrew locations, and Windows's
-`%LOCALAPPDATA%\hoploom\bin`. Explicit commands never fall back to another
-installation. Relative configured paths and relative/empty PATH entries are
-excluded. A bounded `mcp serve --help` preflight detects missing or incompatible
-backends before the MCP handshake. This check exits before database, vault or SSH
-access, scrubs ambient credentials with dsh's shared helper, and does not relay
-child output. Fully quit the desktop app before using CLI plugin commands with
-`--profile desktop`.
+In **Plugins → dsh-hoploom → Configuration**, edit the `dsh-hoploom` entry:
 
-The plugin's instructions require target selection before skill resolution,
-restrict host-bound guidance to `applies_to`, and forbid using shell tools to
-bypass disabled remote tools. Inventory readiness is separate from verified
-reachability. Host changes, credential entry, file transfers and interactive
-shells use the human's local Hoploom UI or terminal. The plugin neither embeds
-the secret-entry UI nor exposes a credential reveal API.
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `command` | `hoploom` | Reuse a usable local installation or prepare the bundled backend |
+| `commandArgs` | `[]` | Prefix arguments before `mcp serve`, without shell parsing |
+| `autoInstall` | `true` | Prepare a missing default backend automatically |
+| `managedDir` | empty | Optional absolute private-runtime directory |
+| `allowRemote` | `false` | Enable `test_host` |
+| `allowExec` | `false` | Enable `run_command`, requiring `allowCommands` |
+| `allowCommands` | `[]` | Backend glob allowlist, e.g. `["uptime", "df -h"]` |
+| `dataDir` / `runtimeDir` | empty | Optional absolute Hoploom state directories |
+| `toolCallTimeoutMs` | `660000` | MCP call deadline; backend command timeouts still apply |
 
-## How the plugin is built
+With `autoInstall: false`, a missing default backend waits for an explicit
+**Prepare Hoploom** action. The managed runtime is stored under
+`$DSH_HOME/plugin-data/hoploom`, or `~/.dsh/plugin-data/hoploom` without DSH_HOME.
+Host metadata and vault namespaces retain their normal Hoploom locations.
+Removing the plugin preserves inventory, vault entries and the managed runtime.
 
-The design follows [dsh-context's bundle packaging](https://github.com/bowenliang123/dsh-context)
-and the [official plugin guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/preset/agent-preset/skills/cordis-plugin-development/references/mcp-bundle.md):
+Default lookup searches absolute PATH directories, `~/.local/bin`, macOS
+Homebrew locations, and Windows `%LOCALAPPDATA%\hoploom\bin`. An explicit
+custom command, absolute path or argument prefix is never silently replaced.
+It must support `mcp serve`; old `serverctl 0.7.0` does not. Windows can use
+`hoploom.cmd`, `hoploom.exe`, or an absolute Python executable with the launcher
+in `commandArgs`. Relative executable paths are rejected.
 
-1. `package.json` declares `dsh.bundle.patch`, its supported harness version,
-   explicit npm files, locale exports and peer dependencies.
-2. `cordis.patch.yml` inserts one `dsh-hoploom` entry into the selected profile.
-3. The host entry exports `name`, `inject`, `Config` and async `apply`.
-   Schemastery supplies the editable configuration form.
-4. The entry validates settings, resolves and checks the local backend, then calls the official
-   `@deepseek-ai/dsh-mcp-client` on its own lifecycle scope. The client discovers
-   backend schemas, registers namespaced tools, forwards cancellation, reconnects
-   and disposes connections. There is no second protocol implementation.
-5. An optional `systemPrompt` section supplies Hoploom's agent interaction rules.
-   Loading the plugin does not require a browser-only service.
+No setting accepts secret values. An allowlist alone does not enable execution.
+Backend globs match joined argv or its executable: `*` permits arbitrary
+commands, and allowing an interpreter permits its programs. Enabled tools
+still require task authorization. Agents select targets, resolve their host
+skills, and must never bypass disabled tools with raw SSH or another shell.
+Host-key trust remains a human decision.
 
-The Python backend still owns inventory, vault access, strict SSH host-key checks,
-remote command policy and audit records. Tools obtain the same policy as
-`hoploom mcp serve`; acting calls retain audit actor `mcp`. The plugin does not
-install software, request vault values or automatically test hosts.
+## Recovery
+
+For a failed first preparation, check network/proxy access and disk space, then
+retry from the sidebar. Cancelling stops only the attempt's owned subprocesses;
+an incomplete new environment is discarded after they stop. Completed older
+environments remain available for other profiles. Concurrent installers share
+a lock, and interrupted dead installers are recovered.
+
+For an explicit custom-command failure, correct the command or restore the
+default `hoploom` setting for automatic preparation. Upgrading from 0.1.x
+`spawn hoploom ENOENT` no longer requires a separate backend install with the
+default setting. Do not also register a generic MCP connection named `hoploom`.
+
+## Architecture
+
+The design follows [dsh-context's packaging](https://github.com/bowenliang123/dsh-context)
+and the [official dsh APIs](https://github.com/deepseek-ai/deepseek-harness).
+
+1. `package.json` declares the bundle patch, client factory, supported harness
+   version, locale exports and explicit npm files.
+2. The host entry validates configuration and registers the recovery tool and
+   authenticated owner-only Fetch route. Backend preparation runs asynchronously,
+   so the client entry remains available when it fails.
+3. A verified Python wheel is built from tracked public backend source only.
+   uv archives are pinned to version and SHA256, extracted only for the expected
+   executable, and kept in a private directory. Each new environment is installed
+   separately; a verified successful install atomically updates its pointer.
+4. `@deepseek-ai/dsh-mcp-client` owns schema discovery, namespaced tools,
+   cancellation, reconnects and connection disposal. Python still owns inventory,
+   vault access, strict host-key checks, command policy and audit actor `mcp`.
+5. The browser factory uses dsh's official `sidebar.panellist` and `main` slots,
+   with shared React and locale services. Its setup endpoint accepts a fixed set
+   of actions; it cannot change remote-tool policy or return credentials.
+
+A bounded `mcp serve --help` probe exits before opening the database, vault or
+SSH client. Subprocesses use dsh's scrubbed environment. Installation output and
+UI launch output are not relayed to browser or tool responses. The plugin does
+not install a second protocol implementation or duplicate backend schemas.
 
 ## Verify and publish
 
@@ -95,34 +129,29 @@ From the repository root:
 ```sh
 npm ci --prefix dsh-hoploom
 npm run build --prefix dsh-hoploom
-HOPLOOM_TEST_PYTHON=/absolute/path/to/python npm test --prefix dsh-hoploom
+HOPLOOM_BUILD_PYTHON=/absolute/path/to/python npm run build:backend --prefix dsh-hoploom
+HOPLOOM_TEST_PYTHON=/absolute/path/to/python HOPLOOM_TEST_BOOTSTRAP=1 npm test --prefix dsh-hoploom
 npm pack ./dsh-hoploom --pack-destination /absolute/path/to/output
 ```
 
-The Python environment must contain Hoploom's dependencies. Tests initialize
-temporary data/runtime directories and call the real backend through the real
-dsh registry. They verify default tool scope, host metadata, target-specific
-context, allowlist refusal, pre-dispatch cancellation and unload cleanup.
-They also cover default command loading with a restricted PATH, installer locations,
-Windows launchers, missing/old backends and startup cancellation.
-The workflow runs on Linux, macOS and Windows. Before publishing, install the
-tarball into a disposable `DSH_HOME` profile and verify bundle loading; never
-use production inventory for release tests.
+The build Python needs `build` and Hoploom's dependencies. Tests isolate state
+and exercise real MCP tools, permissions, cleanup, runtime downloads, concurrent
+installation, cancellation, offline reuse and the built client panel. CI runs
+on macOS, Linux and Windows. Before release, install the tarball into a disposable
+`DSH_HOME` and verify sidebar registration, setup status and tool discovery.
+Never use production inventory for release tests.
 
-Bump `dsh-hoploom/package.json` and its lockfile together; update its changelog
-and versioned tarball examples. Do not bump the Python package just to release
-this independent adapter. Commit the reviewed source, create the matching
-`dsh-hoploom-vX.Y.Z` tag, and attach the verified `.tgz` to its GitHub Release.
-The Python publish workflow ignores these plugin tags.
+Bump `dsh-hoploom/package.json` and its lockfile, update its changelog and tarball
+examples. The Python version does not change for an adapter-only release.
+Commit reviewed source, tag `dsh-hoploom-vX.Y.Z`, and attach the verified `.tgz`
+to its GitHub Release. The Python publish workflow ignores plugin tags.
 
-For the first npm publication, authenticate locally with `npm login` and publish
-the reviewed tarball with `npm publish /absolute/path/dsh-hoploom-X.Y.Z.tgz --access public`.
-Never put an npm token in repository files, tool arguments or chat. Verify the
-registry version and tarball integrity after publishing.
+Authenticate locally with `npm login` and publish the reviewed artifact:
+`npm publish /absolute/path/dsh-hoploom-X.Y.Z.tgz --access public`.
+Keep credentials and authentication codes out of repository files and chat.
+Verify the registry version, integrity and an actual fresh installation.
 
-Later releases can use the manual `publish-dsh` GitHub workflow after configuring
-the npm package's Trusted Publisher for owner `xiayh0107`, repository `hoploom`,
-workflow `publish-dsh.yml`, environment `npm`. Run that workflow on the matching
-plugin tag. It checks the version and publishes with OIDC provenance; no stored
-npm token is required. `dsh-hoploom-v*` tags and `v*` Python tags have separate
-release lifecycles.
+The manual `publish-dsh` workflow can use npm Trusted Publishing after configuring
+owner `xiayh0107`, repository `hoploom`, workflow `publish-dsh.yml`, environment
+`npm`. Dispatch on the matching plugin tag. It checks the version and publishes
+with OIDC provenance. Plugin and Python releases have independent lifecycles.

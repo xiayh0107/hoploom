@@ -661,9 +661,11 @@ with `dsh plugin --profile web add dsh-hoploom`. It discovers these MCP tools
 from the local Hoploom executable and defaults to metadata-only access.
 Remote checks and allowlisted execution are explicit plugin settings; disabled
 tools must not be bypassed with a shell. See [DeepSeek Harness](dsh-plugin.md).
-Plugin 0.1.1 searches standard install locations and checks `mcp serve --help`
-before connecting. A missing or old backend needs installation/update or an
-absolute `command` override, followed by re-enabling the component.
+Plugin 0.2.0 checks existing installs and automatically prepares a private Python
+runtime with the bundled backend when needed. The Hoploom sidebar shows setup
+progress and opens the local host manager. `hoploom_setup` provides status,
+prepare and cancel actions in terminal sessions. Custom `command` overrides
+remain explicit and must provide `mcp serve`.
 
 ```
 hoploom mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]

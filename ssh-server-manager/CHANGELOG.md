@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Improve dsh-hoploom onboarding in plugin 0.2.0: automatically prepare the
+  bundled backend and private Python runtime when no usable Hoploom exists.
+  Add a native sidebar panel with progress, retry/cancel and host-manager access,
+  plus `hoploom_setup` for terminal sessions. Preserve explicit command selection,
+  inventory/vault locations and remote-tool opt-ins.
+
 - Fix dsh-hoploom desktop startup in plugin 0.1.1: discover standard local
   installation paths and check MCP support before connecting. Explain missing
   and outdated backends, and test the default command with a restricted PATH.

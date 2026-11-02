@@ -26,3 +26,4 @@ ssh-server-manager/frontend/playwright-report/
 # DeepSeek Harness plugin build and release artifacts
 dsh-hoploom/lib/
 dsh-hoploom/*.tgz
+dsh-hoploom/backend/

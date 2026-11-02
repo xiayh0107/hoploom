@@ -19,11 +19,12 @@ and its target-first instructions: `dsh plugin --profile web add dsh-hoploom`.
 See `docs/dsh-plugin.md`. Its tools use the `mcp__hoploom__` prefix and default
 to local metadata only. Use `list_hosts`, then `host_skills` for selected hosts.
 Remote tools require the operator's plugin settings; never bypass a disabled
-tool with raw SSH or shell execution. The local Hoploom installation is still
-required, and secret entry remains in the human's UI or terminal.
-Plugin 0.1.1 finds standard install locations and checks `mcp serve --help` before
-connecting. For a startup failure, update the backend or set its absolute
-`command` path, then re-enable the component; old `serverctl 0.7.0` lacks MCP.
+tool with raw SSH or shell execution. Plugin 0.2.0 reuses an existing backend or
+prepares its bundled Hoploom and Python automatically. No separate installation
+is required. While tools are unavailable, call `hoploom_setup` with `action=status`
+and report progress once; do not busy-poll. The user can retry preparation and
+open the local host manager from the Hoploom sidebar. An explicit custom command
+still needs to support MCP. Secret entry remains in the human's UI or terminal.
 
 ## First: route through `hoploom`, not raw ssh
 

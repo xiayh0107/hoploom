@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import { Context } from '@deepseek-ai/cordis'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
@@ -44,6 +45,8 @@ db.create_server_path('web1', label='app', path='/srv/app')
     command: python, commandArgs: [launcher], dataDir, runtimeDir, ...overrides,
   })
   await fiber
+  for (let i = 0; i < 150 && !ctx.tools.get('mcp__hoploom__list_hosts'); i++) await delay(100)
+  assert.ok(ctx.tools.get('mcp__hoploom__list_hosts'), 'backend should become ready')
   return { ctx, fiber }
 }
 
@@ -81,6 +84,7 @@ test('real DSH registry discovers and calls the isolated Python backend', { skip
   assert.match(prompt, /never bypass it/)
   await fiber.dispose()
   assert.equal(ctx.tools.schemas().filter(tool => tool.name.startsWith('mcp__hoploom__')).length, 0)
+  assert.equal(ctx.tools.get('hoploom_setup'), undefined)
   assert.ok(!renderPrompt(await ctx.systemPrompt.assemble()).includes('Hoploom manages'))
 })
 
@@ -121,6 +125,7 @@ try {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(plugin, ${JSON.stringify({ dataDir: join(directory, 'data'), runtimeDir: join(directory, 'runtime') })})
+  for (let i = 0; i < 150 && !ctx.tools.get('mcp__hoploom__list_hosts'); i++) await new Promise(r => setTimeout(r, 100))
   const names = ctx.tools.schemas().map(tool => tool.name).filter(name => name.startsWith('mcp__hoploom__'))
   assert.equal(names.length, 6)
   assert.ok(names.includes('mcp__hoploom__list_hosts'))
