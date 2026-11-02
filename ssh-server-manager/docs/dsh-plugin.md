@@ -47,6 +47,10 @@ dsh owner routes and retain Hoploom's CSRF and credential-reveal checks. Passkey
 need a supported HTTPS domain or localhost origin. Native desktop and IP-address
 views use the existing local master-password flow for secret reveal.
 
+When upgrading from 0.1.x, finish active tasks and fully restart dsh after
+installation. dsh 0.2.1-rc.5 caches the old package's absence of a client entry
+until its backend process exits; a page refresh cannot load the new sidebar.
+
 ## Tools and configuration
 
 The six default tools are `list_hosts`, `host_route`, `saved_paths`, `host_skills`,

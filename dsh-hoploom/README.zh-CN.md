@@ -42,6 +42,9 @@ dsh plugin --profile web add /绝对路径/dsh-hoploom-0.2.0.tgz
 更新：`dsh plugin --profile web update dsh-hoploom@latest`。
 卸载：`dsh plugin --profile web remove dsh-hoploom`。
 通过 CLI 修改 `desktop` 配置前，需完全退出桌面应用；运行时使用应用的插件页面。
+从 0.1.x 升级后，需要在当前任务结束后完整重启 dsh 才能显示新增的侧边栏入口。
+dsh 0.2.1-rc.5 会把旧插件“没有前端入口”的结果缓存到后端进程退出，仅刷新页面无效。
+
 卸载会注销工具并停止插件启动的进程，保留主机库、保险库和托管环境。
 
 ## 能力与设置

@@ -48,6 +48,11 @@ dsh plugin --profile web add /absolute/path/dsh-hoploom-0.2.0.tgz
 Update with `dsh plugin --profile web update dsh-hoploom@latest`. Remove with
 `dsh plugin --profile web remove dsh-hoploom`. For CLI changes to the `desktop`
 profile, fully quit the desktop app first; use its Plugins page while it is open.
+When upgrading from 0.1.x, fully restart dsh after installation to load the new
+sidebar UI. In dsh 0.2.1-rc.5, the old package's absence of a client entry is
+cached for the lifetime of the backend process; refreshing the page is insufficient.
+Finish active tasks before restarting.
+
 Removal unregisters tools and stops plugin-owned processes. Inventory, vault
 entries and the managed runtime are retained.
 
