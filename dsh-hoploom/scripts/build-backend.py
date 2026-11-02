@@ -39,4 +39,4 @@ with tempfile.TemporaryDirectory(prefix='hoploom-plugin-wheel-') as temporary:
     shutil.copyfile(wheel, destination / wheel.name)
     manifest = {'filename': wheel.name, 'version': wheel.name.split('-')[1], 'sha256': hashlib.sha256(wheel.read_bytes()).hexdigest()}
     (destination / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-    print(f'Bundled {wheel.name} ({wheel.stat().st_size} bytes)')
+    print(f'Bundled {wheel.name} ({wheel.stat().st_size} bytes)', file=sys.stderr)
