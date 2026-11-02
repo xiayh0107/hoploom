@@ -51,6 +51,19 @@ When upgrading from 0.1.x, finish active tasks and fully restart dsh after
 installation. dsh 0.2.1-rc.5 caches the old package's absence of a client entry
 until its backend process exits; a page refresh cannot load the new sidebar.
 
+## Install with your agent
+
+On the [Hoploom home page](../#deepseek), choose **Install with your Agent** in
+the DeepSeek Harness section and copy the prompt in your preferred language.
+It asks the agent to identify your dsh profile, use the desktop plugin manager
+or the matching web/tui CLI command, and help verify the sidebar. If the agent
+cannot operate the desktop interface, it can guide you through the steps.
+
+For a desktop upgrade of an installed third-party plugin, use the Plugins page
+to uninstall the old plugin and install the new version. Host data, vault entries
+and the managed runtime are retained. Finish other tasks before restarting dsh
+if you are upgrading from 0.1.x.
+
 ## Tools and configuration
 
 The six default tools are `list_hosts`, `host_route`, `saved_paths`, `host_skills`,

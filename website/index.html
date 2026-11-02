@@ -238,6 +238,18 @@ html[data-lang="zh"] body [lang="en"] { display: none; }
 .product-tabs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-strong); }
 .product-screen { display: block; width: 100%; height: auto; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: #f7f8f9; }
 .product-caption { color: var(--text-secondary); margin-top: 12px; font-size: 13px; }
+.dsh-section { padding: 24px 0 96px; scroll-margin-top: 92px; }
+.dsh-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 28px; }
+.dsh-intro h2 { max-width: 760px; margin-bottom: 12px; font-size: clamp(28px, 3vw, 42px); line-height: 1.2; letter-spacing: -.03em; }
+.dsh-intro p:not(.eyebrow) { max-width: 720px; color: var(--text-secondary); }
+.dsh-actions { display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+.dsh-gallery { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.dsh-gallery-side { display: grid; gap: 16px; }
+.dsh-shot { overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); }
+.dsh-shot button { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+.dsh-shot img { width: 100%; aspect-ratio: 1707 / 850; object-fit: cover; }
+.dsh-shot figcaption { padding: 12px 16px; color: var(--text-secondary); font-size: 13px; }
+.dsh-shot figcaption strong { display: block; color: var(--text); font-size: 14px; font-weight: 600; }
 .demo-section { padding: 0 0 96px; }
 .demo-intro {
   margin-bottom: 20px;
@@ -619,15 +631,19 @@ dialog {
   box-shadow: var(--shadow-xl);
 }
 dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
-.dialog-content { padding: 28px; }
+.dialog-content { display: flex; flex-direction: column; max-height: calc(100vh - 64px); padding: 28px; }
 .dialog-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
+  flex-shrink: 0;
 }
 .dialog-head h2 { margin-bottom: 8px; font-size: 24px; font-weight: 650; letter-spacing: -0.02em; }
 .dialog-head p { color: var(--text-secondary); font-size: 14px; line-height: 1.55; }
+.prompt-modes { display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 8px; margin-top: 22px; }
+.prompt-modes button { padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-soft); color: var(--text-secondary); }
+.prompt-modes button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-strong); }
 .close-button {
   padding: 0 4px;
   border: 0;
@@ -640,6 +656,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
 .prompt {
   margin: 24px 0;
   padding: 18px;
+  min-height: 0;
+  overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-soft);
@@ -647,8 +665,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
   font: 13px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow-wrap: anywhere;
 }
-.copy-button { width: 100%; justify-content: center; }
+.copy-button { width: 100%; justify-content: center; flex-shrink: 0; }
 .copy-button.copied { border-color: var(--success); background: var(--success); box-shadow: var(--shadow-md); }
+.dsh-image-dialog { width: min(1440px, calc(100% - 32px)); max-width: none; max-height: 90vh; }
+.dsh-image-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; }
+.dsh-image-scroll { overflow: auto; max-height: calc(90vh - 56px); }
+.dsh-image-scroll img { width: 100%; }
 
 /* Footer */
 .footer {
@@ -679,6 +701,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
   .tag-library { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 820px) {
+  .dsh-intro { align-items: flex-start; flex-direction: column; gap: 20px; }
   .demo-intro { align-items: flex-start; flex-direction: column; gap: 10px; }
   .demo-intro > p { text-align: left; max-width: none; }
   .demo-app { min-height: 760px; grid-template-columns: 1fr; }
@@ -695,14 +718,21 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
 }
 @media (max-width: 768px) {
   .container, .container-wide { padding: 0 20px; }
-  .nav { flex-direction: column; height: auto; padding: 16px 0; }
-  .nav-links { flex-direction: column; gap: 16px; }
+  .nav { flex-wrap: wrap; height: auto; padding: 12px 0; gap: 12px; }
+  .nav-links { flex-wrap: wrap; gap: 12px; }
+  .dsh-section { scroll-margin-top: 160px; }
   .hero { padding: 80px 0 48px; }
   .hero h1 { font-size: 40px; }
   .demo-section { padding-bottom: 64px; }
   .cta { padding: 24px 0 80px; }
 }
 @media (max-width: 580px) {
+  .dsh-gallery { grid-template-columns: 1fr; }
+  .dsh-section { padding-bottom: 64px; }
+  .dsh-image-scroll img { min-width: 800px; max-width: none; }
+  .features-grid { grid-template-columns: 1fr; }
+  .dialog-content { padding: 20px; }
+  .prompt { margin: 18px 0; padding: 14px; }
   .demo-windowbar { padding-inline: 9px; }
   .demo-address { text-align: left; }
   .sample-pill span { display: none; }
@@ -731,6 +761,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
       </a>
       <div class="nav-links">
         <a href="#demo"><span lang="en">Demo</span><span lang="zh-CN">演示</span></a>
+        <a href="#deepseek">DeepSeek Harness</a>
         <a href="docs/"><span lang="en">Docs</span><span lang="zh-CN">文档</span></a>
         <a href="https://github.com/xiayh0107/hoploom">GitHub</a>
         <button class="lang-button" id="langToggle" type="button">中文</button>
@@ -774,6 +805,39 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
       </div>
       <img id="productScreenshot" class="product-screen" src="assets/ui-hosts.png" alt="Hosts page of the local Hoploom Web UI with fictional acceptance data" width="1440" height="900" loading="lazy">
       <p class="product-caption"><span lang="en">Screenshots of the shipped interface with fictional acceptance data. Host checks and diagnostics are explicit. File conflicts require your overwrite choice.</span><span lang="zh-CN">发行版界面截图，使用虚构的验收数据。连接检查与诊断由你主动触发；文件冲突需明确选择覆盖。</span></p>
+    </div>
+  </section>
+
+  <section class="dsh-section" id="deepseek" aria-labelledby="dshTitle">
+    <div class="container-wide">
+      <div class="dsh-intro">
+        <div>
+          <p class="eyebrow">DeepSeek Harness + Hoploom</p>
+          <h2 id="dshTitle"><span lang="en">Your SSH workspace, right inside DeepSeek Harness.</span><span lang="zh-CN">在 DeepSeek Harness 里，直接管理 SSH 工作区。</span></h2>
+          <p><span lang="en">Open Hoploom from the sidebar to use the original interface without leaving dsh. The plugin prepares its own runtime on first use.</span><span lang="zh-CN">点击侧边栏的 Hoploom，直接使用原有界面，无需跳转浏览器。插件首次使用时会自动准备运行环境。</span></p>
+        </div>
+        <div class="dsh-actions">
+          <button class="btn btn-primary open-agent-dialog" data-dialog-mode="dsh" type="button"><span lang="en">Install with your Agent</span><span lang="zh-CN">让 Agent 帮我安装</span></button>
+          <a class="btn" href="docs/dsh-plugin.html"><span lang="en">Plugin guide</span><span lang="zh-CN">插件文档</span> <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+      <div class="dsh-gallery">
+        <figure class="dsh-shot">
+          <button type="button" data-dsh-image><img src="assets/dsh-hosts.jpg" alt="Hoploom host inventory embedded in the DeepSeek Harness sidebar, with fictional hosts" width="1707" height="850" loading="lazy"></button>
+          <figcaption><strong><span lang="en">The full workspace in dsh</span><span lang="zh-CN">完整工作区，内嵌在 dsh 中</span></strong><span lang="en">See your hosts and jump routes alongside your conversations.</span><span lang="zh-CN">在对话旁查看主机与跳板链路。</span></figcaption>
+        </figure>
+        <div class="dsh-gallery-side">
+          <figure class="dsh-shot">
+            <button type="button" data-dsh-image><img src="assets/dsh-tags.jpg" alt="Hoploom tags page embedded in DeepSeek Harness, with fictional labels" width="1707" height="850" loading="lazy"></button>
+            <figcaption><strong><span lang="en">Organize by tags</span><span lang="zh-CN">用标签整理主机</span></strong></figcaption>
+          </figure>
+          <figure class="dsh-shot">
+            <button type="button" data-dsh-image><img src="assets/dsh-setup.jpg" alt="Hoploom plugin preparing its runtime inside DeepSeek Harness" width="1707" height="850" loading="lazy"></button>
+            <figcaption><strong><span lang="en">Ready for first use</span><span lang="zh-CN">首次使用自动准备</span></strong></figcaption>
+          </figure>
+        </div>
+      </div>
+      <p class="product-caption"><span lang="en">Actual plugin screenshots with fictional sample hosts; click to enlarge. No separate Hoploom or Python installation is needed.</span><span lang="zh-CN">插件实际界面截图，主机均为虚构示例；点击截图可放大。无需提前安装 Hoploom 或 Python。</span></p>
     </div>
   </section>
 
@@ -932,9 +996,19 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
       </div>
       <button class="close-button" id="closeAgentDialog" type="button" aria-label="Close">×</button>
     </div>
+    <div class="prompt-modes" role="group" aria-label="Installation prompt">
+      <button type="button" data-install-mode="agent" aria-pressed="true"><span lang="en">General Agent</span><span lang="zh-CN">通用 Agent</span></button>
+      <button type="button" data-install-mode="dsh" aria-pressed="false">DeepSeek Harness</button>
+    </div>
     <div class="prompt" id="agentInstallCommand"><span lang="en">Read https://github.com/xiayh0107/hoploom/blob/main/ssh-server-manager/docs/ai-agents.md and follow it to install and configure Hoploom for me. Then: 1) run hoploom doctor and report the results; 2) walk me through first use — if no hosts are managed yet, preview what my ~/.ssh/config could import or guide me through adding a first server (never ask for my password in chat); 3) give me a few example requests I can make next, using the real aliases.</span><span lang="zh-CN">请阅读 https://github.com/xiayh0107/hoploom/blob/main/ssh-server-manager/docs/ai-agents.md，按照文档为我安装并配置 Hoploom。完成后：1）运行 hoploom doctor 并告诉我检查结果；2）带我完成首次使用——如果还没有托管服务器，先预览我的 ~/.ssh/config 里有哪些可以导入，或引导我添加第一台服务器（密码不要让我在聊天里发送）；3）用真实的别名给我几个接下来可以下达的指令示例。</span></div>
+    <div class="prompt" id="dshInstallCommand" hidden><span lang="en">Please read https://xiayh0107.github.io/hoploom/docs/dsh-plugin.html and help me install and enable dsh-hoploom in my DeepSeek Harness. First identify whether I use Desktop, web, or tui. On Desktop, install through Plugins → Add plugin; if updating an existing third-party version, uninstall the plugin and reinstall the latest. Keep my host data and vault entries. If you cannot operate the interface, guide me through it; do not edit the desktop profile with the CLI while the app is running. For web or tui, use dsh plugin --profile web add dsh-hoploom, replacing web with tui when appropriate. Verify the plugin is enabled, show me the sidebar entry, and explain first-time setup. Do not ask for passwords in chat, contact a server, or change my hosts or credentials without my request. For a 0.1.x upgrade, help me finish other tasks and fully restart dsh before checking the sidebar.</span><span lang="zh-CN">请先阅读 https://xiayh0107.github.io/hoploom/docs/dsh-plugin.html，帮我在 DeepSeek Harness 安装并启用 dsh-hoploom。先确认我使用桌面版、web 还是 tui。桌面版请通过“插件 → 添加插件”安装；升级已安装的第三方版本时，先卸载插件再安装最新版，保留我的主机数据和保险库。如果你无法操作界面，请引导我完成；桌面应用运行时不要通过 CLI 修改 desktop 配置。web 或 tui 使用对应配置安装：dsh plugin --profile web add dsh-hoploom（终端界面将 web 换成 tui）。安装后确认插件已启用，告诉我侧边栏 Hoploom 入口以及首次自动准备过程。不要在聊天中索取密码，也不要擅自连接服务器或修改我的主机和凭据。如果从 0.1.x 升级，请先让我结束其他任务，再引导我完整重启 dsh 并确认入口。</span></div>
     <button class="btn btn-primary copy-button" id="copyAgentCommand" type="button"><span lang="en">Copy prompt</span><span lang="zh-CN">复制提示词</span></button>
   </div>
+</dialog>
+
+<dialog id="dshImageDialog" class="dsh-image-dialog" aria-label="DeepSeek Harness screenshot">
+  <div class="dsh-image-head"><strong>DeepSeek Harness + Hoploom</strong><button class="close-button" id="closeDshImage" type="button"><span aria-hidden="true">×</span><span class="sr-only" lang="en">Close screenshot</span><span class="sr-only" lang="zh-CN">关闭截图</span></button></div>
+  <div class="dsh-image-scroll"><img id="dshImagePreview" src="assets/dsh-hosts.jpg" alt=""></div>
 </dialog>
 
 <script>
@@ -951,6 +1025,7 @@ document.querySelectorAll("[data-product-screen]").forEach(function (button) {
 var langButton = document.getElementById("langToggle");
 var agentDialog = document.getElementById("agentDialog");
 var copyButton = document.getElementById("copyAgentCommand");
+var dshImageDialog = document.getElementById("dshImageDialog");
 var demoShell = document.getElementById("demoShell");
 var demoTagPicker = document.getElementById("demoTagPicker");
 var demoToast = document.getElementById("demoToast");
@@ -1038,7 +1113,14 @@ else { root.removeAttribute("data-lang"); root.lang = "en"; langButton.textConte
 }
 function promptText() {
 var selector = useChinese ? '[lang="zh-CN"]' : '[lang="en"]';
-return byId("agentInstallCommand").querySelector(selector).textContent.trim();
+return byId(installMode === "dsh" ? "dshInstallCommand" : "agentInstallCommand").querySelector(selector).textContent.trim();
+}
+var installMode = "agent";
+function setInstallMode(mode) {
+installMode = mode === "dsh" ? "dsh" : "agent";
+byId("agentInstallCommand").hidden = installMode !== "agent";
+byId("dshInstallCommand").hidden = installMode !== "dsh";
+document.querySelectorAll("[data-install-mode]").forEach(function (button) { button.setAttribute("aria-pressed", String(button.dataset.installMode === installMode)); });
 }
 function copied() {
 copyButton.classList.add("copied"); copyButton.textContent = useChinese ? "已复制" : "Copied";
@@ -1186,7 +1268,10 @@ if (assignToPicker) hosts.filter(function (host) { return pickerHostIds.indexOf(
 renderAll(); if (assignToPicker) renderTagPicker(); showToast("Created tag “" + clean + "”");
 }
 langButton.addEventListener("click", function () { useChinese = !useChinese; try { localStorage.setItem("ssm-lang", useChinese ? "zh" : "en"); } catch (error) {} applyLanguage(); });
-document.querySelectorAll(".open-agent-dialog").forEach(function (button) { button.addEventListener("click", function () { agentDialog.showModal(); }); });
+document.querySelectorAll(".open-agent-dialog").forEach(function (button) { button.addEventListener("click", function () { setInstallMode(button.dataset.dialogMode); agentDialog.showModal(); }); });
+document.querySelectorAll("[data-install-mode]").forEach(function (button) { button.addEventListener("click", function () { setInstallMode(button.dataset.installMode); }); });
+document.querySelectorAll("[data-dsh-image]").forEach(function (button) { button.addEventListener("click", function () { var source = button.querySelector("img"); var preview = byId("dshImagePreview"); preview.src = source.src; preview.alt = source.alt; dshImageDialog.showModal(); }); });
+byId("closeDshImage").addEventListener("click", function () { dshImageDialog.close(); });
 byId("closeAgentDialog").addEventListener("click", function () { agentDialog.close(); });
 copyButton.addEventListener("click", function () { var text = promptText(); if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(copied, function () { fallbackCopy(text); }); else fallbackCopy(text); });
 byId("demoThemeButton").addEventListener("click", function () { var light = demoShell.dataset.demoTheme !== "light"; demoShell.dataset.demoTheme = light ? "light" : "dark"; this.textContent = light ? "Dark" : "Light"; });
