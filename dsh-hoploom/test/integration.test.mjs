@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
@@ -96,4 +96,44 @@ test('remote opt-ins register tools but backend rejects non-allowlisted commands
   controller.abort()
   assert.equal((await call(ctx, 'test_host', { host: 'web1' }, controller.signal)).isError, true)
   assert.equal(payload(await call(ctx, 'list_hosts', { query: 'web1' })).hosts[0].last_test_status, null)
+})
+
+test('default plugin command loads the backend from a desktop-style PATH', { skip: !python, timeout: 30000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'hoploom-default-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const bin = join(directory, 'bin with spaces')
+  await mkdir(bin)
+  const pythonPath = execFileSync(python, ['-c', 'import sys; print(sys.executable)'], { encoding: 'utf8' }).trim()
+  const windows = process.platform === 'win32'
+  const quote = value => "'" + value.replaceAll("'", "'\\''") + "'"
+  const wrapper = windows
+    ? `@echo off\r\n@"${pythonPath.replaceAll('%', '%%')}" "${launcher.replaceAll('%', '%%')}" %*\r\n`
+    : `#!/bin/sh\nexec ${quote(pythonPath)} ${quote(launcher)} "$@"\n`
+  await writeFile(join(bin, windows ? 'hoploom.cmd' : 'hoploom'), wrapper, { mode: 0o700 })
+  const script = `
+import assert from 'node:assert/strict'
+import { Context } from ${JSON.stringify(import.meta.resolve('@deepseek-ai/cordis'))}
+import ToolRuntime from ${JSON.stringify(import.meta.resolve('@deepseek-ai/dsh-tools'))}
+import SystemPrompt from ${JSON.stringify(import.meta.resolve('@deepseek-ai/dsh-system-prompt'))}
+import * as plugin from ${JSON.stringify(new URL('../lib/index.js', import.meta.url).href)}
+const ctx = new Context()
+try {
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(plugin, ${JSON.stringify({ dataDir: join(directory, 'data'), runtimeDir: join(directory, 'runtime') })})
+  const names = ctx.tools.schemas().map(tool => tool.name).filter(name => name.startsWith('mcp__hoploom__'))
+  assert.equal(names.length, 6)
+  assert.ok(names.includes('mcp__hoploom__list_hosts'))
+  assert.ok(!names.includes('mcp__hoploom__run_command'))
+} finally {
+  await ctx.fiber.dispose()
+}
+console.log('default-command-loaded')
+`
+  const env = { ...process.env }
+  for (const name of Object.keys(env)) if (name.toUpperCase() === 'PATH') delete env[name]
+  env.PATH = [bin, ...(windows ? [join(process.env.SystemRoot, 'System32')] : ['/usr/bin', '/bin'])].join(delimiter)
+  assert.match(execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+    env, encoding: 'utf8', timeout: 20000, stdio: 'pipe',
+  }), /default-command-loaded/)
 })

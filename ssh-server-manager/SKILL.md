@@ -21,6 +21,9 @@ to local metadata only. Use `list_hosts`, then `host_skills` for selected hosts.
 Remote tools require the operator's plugin settings; never bypass a disabled
 tool with raw SSH or shell execution. The local Hoploom installation is still
 required, and secret entry remains in the human's UI or terminal.
+Plugin 0.1.1 finds standard install locations and checks `mcp serve --help` before
+connecting. For a startup failure, update the backend or set its absolute
+`command` path, then re-enable the component; old `serverctl 0.7.0` lacks MCP.
 
 ## First: route through `hoploom`, not raw ssh
 

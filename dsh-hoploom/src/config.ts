@@ -14,7 +14,7 @@ export interface Config {
 }
 
 export const Config: Schema<Config> = Schema.object({
-  command: Schema.string().default('hoploom').description('Hoploom executable or absolute path. No shell command or secrets.'),
+  command: Schema.string().default('hoploom').description('Hoploom executable or absolute path. The default searches PATH and standard local install locations. Install Hoploom separately; no shell command or secrets.'),
   commandArgs: Schema.array(String).default([]).description('Arguments before mcp serve; for example the Hoploom Python launcher path.'),
   allowRemote: Schema.boolean().default(false).description('Expose test_host, which contacts a selected SSH host.'),
   allowExec: Schema.boolean().default(false).description('Expose run_command. Requires at least one allowed command pattern.'),

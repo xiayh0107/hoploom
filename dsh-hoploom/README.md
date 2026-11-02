@@ -15,8 +15,9 @@ machine running the dsh backend**, including when you use dsh through a browser.
 The npm package does not install Python, OpenSSH or Hoploom automatically.
 
 1. Install Hoploom with its [source installer](https://github.com/xiayh0107/hoploom#one-line-agent-skill-deployment).
-   If already installed, use that installation. Check `hoploom --version` and
-   `hoploom mcp tools` in the terminal that starts dsh. Hoploom's renamed PyPI
+   If already installed, check `hoploom --version` and
+   `hoploom mcp serve --help`. Upgrade an old installation if either command
+   fails; `serverctl 0.7.0` does not provide MCP. Hoploom's renamed PyPI
    distribution is not a prerequisite; the source installer works independently.
 2. In dsh's **Plugins → Add plugin**, search for `dsh-hoploom`, or run:
 
@@ -33,7 +34,7 @@ You can also install the `.tgz` attached to a
 [plugin release](https://github.com/xiayh0107/hoploom/releases):
 
 ```sh
-dsh plugin --profile web add /absolute/path/dsh-hoploom-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/dsh-hoploom-0.1.1.tgz
 ```
 
 Update with `dsh plugin --profile web update dsh-hoploom@latest`. Remove with
@@ -86,8 +87,14 @@ another interpreter permits programs accepted by that interpreter.
 
 Do not put passwords, tokens or passphrases in any plugin setting.
 
-For a source installation missing from PATH, use its absolute `scripts/hoploom`
-path. On Windows, a pip-installed `hoploom.exe` works directly. Alternatively,
+With the default `command: hoploom`, version 0.1.1 searches absolute PATH entries,
+then `~/.local/bin`, macOS Homebrew locations, and the Windows source installer's
+`%LOCALAPPDATA%\hoploom\bin`. This works when a desktop app does not inherit your
+terminal's PATH. An explicit command or absolute path is honored without fallback.
+Relative paths and empty/relative PATH entries are not searched.
+
+For a custom source installation, use its absolute `scripts/hoploom` path.
+On Windows, `hoploom.cmd` and a pip-installed `hoploom.exe` work directly. Alternatively,
 set `command` to your installation's Python executable and `commandArgs` to
 `["C:\\path\\to\\hoploom\\ssh-server-manager\\scripts\\hoploom.py"]`.
 An existing pre-rename installation with the same MCP interface can set
@@ -107,10 +114,21 @@ the credential UI, relay launch tokens, expose a reveal tool, or bypass host-key
 verification. Remote calls retain Hoploom's `mcp` audit actor and command policy.
 Enabling a tool does not authorize every possible operation on every host.
 
-If activation fails, confirm that dsh's backend can find the configured executable.
-Desktop applications may have a different PATH from your terminal. Install or
-select Hoploom, then re-enable the plugin. Do not register a second generic MCP
-connection named `hoploom` alongside this plugin.
+## Startup troubleshooting
+
+`spawn hoploom ENOENT` in version 0.1.0 means dsh could not find the backend.
+Install or update Hoploom separately, verify `hoploom mcp serve --help`, then
+set the plugin's `command` to its absolute executable path and re-enable the
+component. On macOS, the source installer's default is `~/.local/bin/hoploom`;
+expand `~` to your home directory in the setting. Changing it to an old
+`serverctl` without MCP support will still fail.
+
+Version 0.1.1 resolves the default executable and checks `mcp serve --help` before
+connecting. Missing, incompatible or stalled backends produce recovery instructions.
+The bounded help check does not open the database, access the vault or contact hosts;
+it uses dsh's environment scrubbing and does not relay backend diagnostics.
+For CLI updates to the `desktop` profile, fully quit the desktop app first.
+Do not register a second generic MCP connection named `hoploom` alongside this plugin.
 
 ## Development and release
 

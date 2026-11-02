@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix dsh-hoploom desktop startup in plugin 0.1.1: discover standard local
+  installation paths and check MCP support before connecting. Explain missing
+  and outdated backends, and test the default command with a restricted PATH.
+
 - Add the independently versioned `dsh-hoploom` DeepSeek Harness plugin
   (0.1.0), using the official dsh MCP client and Hoploom's existing stdio
   backend. It defaults to six metadata tools, supports explicit remote checks

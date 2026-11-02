@@ -291,6 +291,10 @@ interaction rules. Default access is local metadata; host checks and command
 allowlists are explicit settings in the plugin's configuration form. Do not
 bypass disabled tools through a shell. See [the plugin guide](dsh-plugin.md)
 for installation, executable paths and the security boundary.
+Plugin 0.1.1 finds standard local installations even with a restricted desktop
+PATH, and checks `mcp serve --help` before connecting. If startup fails, update
+the backend or set its absolute `command` path, then re-enable the component;
+old `serverctl 0.7.0` lacks the required MCP interface.
 
 The Skill is still the recommended path: an agent that can read `SKILL.md` gets
 the reasoning, the interaction rules, and every command. The MCP wrapper exists

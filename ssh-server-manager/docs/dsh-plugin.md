@@ -2,13 +2,14 @@
 
 `dsh-hoploom` connects DeepSeek Harness to the local Hoploom installation through
 stdio MCP. The plugin package lives in [`dsh-hoploom/`](https://github.com/xiayh0107/hoploom/tree/main/dsh-hoploom)
-and has its own version, starting at 0.1.0. It supports dsh 0.2.1-rc.5.
+and has its own version, currently 0.1.1. It supports dsh 0.2.1-rc.5.
 
 ## Install and use
 
 Install Hoploom using the [source installer](installation.md), or select an
 existing installation. In the terminal that starts the dsh backend, verify
-`hoploom --version` and `hoploom mcp tools`. The npm plugin does not install the
+`hoploom --version` and `hoploom mcp serve --help`. Upgrade the backend if either
+fails; legacy `serverctl 0.7.0` has no MCP interface. The npm plugin does not install the
 Python backend. A browser on another machine still operates the backend machine's
 inventory and OS account.
 
@@ -35,10 +36,28 @@ an interpreter permits its programs, and `*` permits arbitrary commands.
 
 The `command` setting selects the Hoploom executable. `commandArgs` supplies
 separate arguments before `mcp serve` when a Python launcher is needed.
-On Windows, use `hoploom.exe`, or a Python executable plus the absolute
+On Windows, use `hoploom.cmd`, `hoploom.exe`, or a Python executable plus the absolute
 `scripts/hoploom.py` argument. Existing `serverctl mcp serve` installations
 can select `serverctl` explicitly. Optional absolute `dataDir` and `runtimeDir`
 settings isolate state. No setting should contain a credential value.
+
+### Desktop startup and missing backends
+
+Version 0.1.0 reports `spawn hoploom ENOENT` when dsh cannot find the executable.
+Install or update Hoploom, check `hoploom mcp serve --help`, set `command` to an
+absolute executable path, then re-enable the component. The macOS source installer
+creates `~/.local/bin/hoploom`; expand `~` before entering the setting. Merely
+changing the command to an old `serverctl` without MCP support does not fix it.
+
+Since 0.1.1, the default `hoploom` command searches absolute PATH entries followed
+by `~/.local/bin`, macOS Homebrew locations, and Windows's
+`%LOCALAPPDATA%\hoploom\bin`. Explicit commands never fall back to another
+installation. Relative configured paths and relative/empty PATH entries are
+excluded. A bounded `mcp serve --help` preflight detects missing or incompatible
+backends before the MCP handshake. This check exits before database, vault or SSH
+access, scrubs ambient credentials with dsh's shared helper, and does not relay
+child output. Fully quit the desktop app before using CLI plugin commands with
+`--profile desktop`.
 
 The plugin's instructions require target selection before skill resolution,
 restrict host-bound guidance to `applies_to`, and forbid using shell tools to
@@ -57,7 +76,7 @@ and the [official plugin guide](https://github.com/deepseek-ai/deepseek-harness/
 2. `cordis.patch.yml` inserts one `dsh-hoploom` entry into the selected profile.
 3. The host entry exports `name`, `inject`, `Config` and async `apply`.
    Schemastery supplies the editable configuration form.
-4. The entry validates settings and calls the official
+4. The entry validates settings, resolves and checks the local backend, then calls the official
    `@deepseek-ai/dsh-mcp-client` on its own lifecycle scope. The client discovers
    backend schemas, registers namespaced tools, forwards cancellation, reconnects
    and disposes connections. There is no second protocol implementation.
@@ -84,6 +103,8 @@ The Python environment must contain Hoploom's dependencies. Tests initialize
 temporary data/runtime directories and call the real backend through the real
 dsh registry. They verify default tool scope, host metadata, target-specific
 context, allowlist refusal, pre-dispatch cancellation and unload cleanup.
+They also cover default command loading with a restricted PATH, installer locations,
+Windows launchers, missing/old backends and startup cancellation.
 The workflow runs on Linux, macOS and Windows. Before publishing, install the
 tarball into a disposable `DSH_HOME` profile and verify bundle loading; never
 use production inventory for release tests.
