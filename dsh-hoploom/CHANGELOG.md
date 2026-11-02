@@ -6,11 +6,14 @@
   runtime when the default command has no usable installation. Reuse existing
   installs and preserve explicit custom commands.
 - Add a native Hoploom sidebar entry and bilingual setup panel with progress,
-  retry, cancel and an explicit button opening the local host manager.
+  retry and cancel. Embed the full existing Hoploom UI in dsh without opening
+  an external browser; share its inventory and vault with MCP.
 - Keep recovery available during setup failures; add `hoploom_setup` for agents
   and terminal sessions. Retain metadata-only defaults and the official MCP bridge.
 - Verify pinned runtime downloads, serialize concurrent installers, cancel owned
   processes and reuse verified environments offline. Do not modify system Python.
+- Keep authenticated dsh owner routes, per-view sessions, CSRF and reveal
+  authentication; stream uploads/downloads and cancel outstanding requests.
 - Cover first installation, cache reuse, failed setup recovery, UI registration,
   cancellation and existing MCP behavior on macOS, Linux and Windows.
 

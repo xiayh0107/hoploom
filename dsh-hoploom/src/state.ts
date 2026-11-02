@@ -1,5 +1,5 @@
 export type Stage = 'checking' | 'waiting' | 'downloading' | 'python' | 'installing' | 'connecting' | 'ready' | 'needs-install' | 'cancelled' | 'error'
-export type FailureCode = 'download' | 'integrity' | 'unsupported' | 'install' | 'backend' | 'custom-command' | 'timeout' | 'storage'
+export type FailureCode = 'download' | 'integrity' | 'unsupported' | 'install' | 'backend' | 'custom-command' | 'timeout' | 'storage' | 'needs-install'
 
 export interface BackendState {
   stage: Stage
@@ -7,6 +7,8 @@ export interface BackendState {
   error: FailureCode | null
   remoteEnabled: boolean
   execEnabled: boolean
+  uiStage: Stage | null
+  uiError: FailureCode | null
 }
 
 export class SetupError extends Error {

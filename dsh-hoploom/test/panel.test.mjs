@@ -27,8 +27,7 @@ test('a failed custom backend leaves recovery API available and never installs a
       assert.equal((await handler(request(body))).status, 400)
     }
     const response = await handler(request({ action: 'open' }))
-    assert.equal(response.status, 503)
-    assert.equal((await response.json()).error, 'open-failed')
+    assert.equal(response.status, 400)
     const preparation = await handler(request({ action: 'prepare' }))
     assert.equal(preparation.status, 200)
     await manager.start()
@@ -36,7 +35,7 @@ test('a failed custom backend leaves recovery API available and never installs a
   } finally { await manager.dispose() }
 })
 
-test('built client registers a sidebar entry and renders recoverable setup without opening UI on mount', async t => {
+test('built client registers a sidebar entry and renders recoverable setup and then embeds the existing UI', async t => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://dsh.invalid/' })
   const previous = Object.fromEntries(['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   Object.defineProperty(globalThis, 'window', { configurable: true, value: dom.window })
@@ -51,7 +50,7 @@ test('built client registers a sidebar entry and renders recoverable setup witho
   })
   const calls = [], registrations = [], disposers = [], listeners = new Set()
   let exported, dictionaries, locale = 'zh', snapshot = { active: locale }
-  let backend = { stage: 'error', error: 'download', source: 'managed', remoteEnabled: false, execEnabled: false }
+  let backend = { stage: 'error', error: 'download', source: 'managed', remoteEnabled: false, execEnabled: false, uiStage: null, uiError: null }
   const context = {
     window: { __ModuleLoader__: { load: module => { exported = module.factory(name => { assert.equal(name, 'react'); return React }) } } },
     console, setTimeout, clearTimeout, AbortController,
@@ -60,8 +59,8 @@ test('built client registers a sidebar entry and renders recoverable setup witho
       assert.equal(options.credentials, 'same-origin')
       const { action } = JSON.parse(options.body)
       calls.push(action)
-      if (action === 'prepare') backend = { ...backend, stage: 'ready', error: null }
-      return Response.json({ state: backend, ...(action === 'open' ? { opened: true } : {}) })
+      if (action === 'prepare') backend = { ...backend, stage: 'ready', error: null, uiStage: 'ready' }
+      return Response.json({ state: backend })
     },
   }
   vm.runInNewContext(await readFile(new URL('../lib/client.js', import.meta.url), 'utf8'), context)
@@ -91,13 +90,11 @@ test('built client registers a sidebar entry and renders recoverable setup witho
     const button = () => document.querySelector('button')
     assert.equal(button().textContent, '重试')
     await React.act(async () => button().click())
-    assert.match(document.body.textContent, /已准备就绪/)
-    assert.equal(button().textContent, '打开主机管理')
+    const iframe = document.querySelector('iframe')
+    assert.equal(iframe.title, 'Hoploom')
+    assert.equal(iframe.getAttribute('src'), 'api/dsh-hoploom/ui')
     assert.deepEqual(calls, ['status', 'prepare'])
-    await React.act(async () => button().click())
-    assert.equal(calls.at(-1), 'open')
-    await React.act(async () => { locale = 'en'; snapshot = { active: locale }; for (const listener of listeners) listener() })
-    assert.equal(button().textContent, 'Open host manager')
+    assert.ok(!calls.includes('open'))
   } finally {
     await React.act(async () => root.unmount())
     for (const dispose of disposers.reverse()) dispose?.()

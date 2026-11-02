@@ -118,15 +118,20 @@ against command coverage.
 
 ## DeepSeek Harness plugin
 
-Work from `dsh-hoploom/`: `npm ci`, `npm run build`, `npm run build:backend`, then
+Install frontend build dependencies first with `npm ci --prefix ssh-server-manager/frontend`.
+Then work from `dsh-hoploom/`: `npm ci`, `npm run build`, `npm run build:backend`, then
 `HOPLOOM_TEST_PYTHON=/absolute/path/to/python npm test`. The Python environment
 must have `build` and Hoploom's dependencies installed. Integration tests use isolated state;
 without that variable they skip. `npm pack` builds the release tarball, and the
-`files` allowlist excludes source, tests, dependencies and local state. The backend
+`files` allowlist includes the private Python UI adapter but excludes frontend/TypeScript
+source, tests, dependencies and local state. The backend
 wheel is built from tracked public source only. Run `HOPLOOM_TEST_BOOTSTRAP=1`
 with tests to verify managed Python installation and offline cache reuse. Keep
 installer downloads checksum-pinned, cancellation scoped to owned processes,
-and the sidebar/recovery route available while setup runs or fails.
+and the sidebar/recovery route available while setup runs or fails. Compile the existing
+frontend into the embedded panel; do not fork its pages. Keep owner authentication,
+per-view sessions, CSRF, reveal checks and streaming cancellation intact. UI requests
+must reach only the private plugin-owned loopback backend; do not open an external browser.
 
 Keep MCP schemas, SSH policy and vault operations in the Python backend. The
 adapter discovers tools through the official bridge; it must not bypass disabled

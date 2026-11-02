@@ -7,6 +7,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { BackendManager } from './manager.js'
 import { backendHandler } from './api.js'
 import { API_ROUTE } from './state.js'
+import { UI_ROOT, UI_API, uiAsset } from './embedded.js'
 
 export const name = 'dsh-hoploom'
 export const inject = ['tools']
@@ -41,10 +42,15 @@ export function apply(ctx: Context, input: PluginConfig): void {
   })))
   ctx.inject(['connection'], inner => {
     const connection = inner.get('connection') as {
-      fetch: { register(route: { path: string; methods: string[]; requestBody: 'buffered'; fetch(request: Request): Promise<Response> }): () => void }
+      fetch: { register(route: { path: string; methods: string[]; requestBody: 'buffered' | 'streaming'; fetch(request: Request): Promise<Response> }): () => void }
     }
     inner.effect(() => connection.fetch.register({
       path: '/' + API_ROUTE, methods: ['POST'], requestBody: 'buffered', fetch: backendHandler(manager),
+    }))
+    inner.effect(() => connection.fetch.register({ path: UI_ROOT, methods: ['GET'], requestBody: 'buffered', fetch: () => manager.uiFrame() }))
+    inner.effect(() => connection.fetch.register({ path: UI_API, methods: ['POST'], requestBody: 'streaming', fetch: request => manager.uiRequest(request) }))
+    for (const asset of ['ui.js', 'ui.css'] as const) inner.effect(() => connection.fetch.register({
+      path: '/api/dsh-hoploom/' + asset, methods: ['GET'], requestBody: 'buffered', fetch: () => uiAsset(asset),
     }))
   })
   ctx.inject(['systemPrompt'], inner => {

@@ -291,8 +291,8 @@ interaction rules. Default access is local metadata; host checks and command
 allowlists are explicit settings in the plugin's configuration form. Do not
 bypass disabled tools through a shell. See [the plugin guide](dsh-plugin.md)
 for installation, executable paths and the security boundary.
-The Hoploom sidebar remains available during setup and offers retry, cancel and
-an explicit host-manager button. If MCP tools are not ready, call `hoploom_setup`
+The Hoploom sidebar remains available during setup and offers retry/cancel, then
+embeds the full existing UI directly in dsh without opening an external browser. If MCP tools are not ready, call `hoploom_setup`
 with `action=status` and report once, without busy polling. On request, use
 `action=prepare` to retry or `action=cancel` to stop preparation. Explicit custom
 commands are honored and must support MCP. Credential entry stays in the human's

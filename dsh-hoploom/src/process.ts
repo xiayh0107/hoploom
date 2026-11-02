@@ -15,15 +15,18 @@ export function startLocal(command: string, args: string[], options: {
   env?: Record<string, string>
   cwd?: string
   capture?: boolean
+  input?: string
   signal?: AbortSignal
 } = {}): LocalProcess {
   options.signal?.throwIfAborted()
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: { ...scrubbedParentEnv(), ...options.env },
-    stdio: ['ignore', options.capture ? 'pipe' : 'ignore', 'ignore'],
+    stdio: [options.input === undefined ? 'ignore' : 'pipe', options.capture ? 'pipe' : 'ignore', 'ignore'],
     windowsHide: true, shell: false, detached: process.platform !== 'win32',
   })
+  child.stdin?.on('error', () => {})
+  if (options.input !== undefined) child.stdin?.end(options.input)
   let stdout = ''
   let closed = false
   let stopping: Promise<void> | undefined

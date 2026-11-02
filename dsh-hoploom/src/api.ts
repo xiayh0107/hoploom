@@ -21,11 +21,12 @@ export function backendHandler(manager: BackendManager) {
     const action = (body as { action?: string }).action
     switch (action) {
       case 'status': return respond({ state: manager.snapshot() })
-      case 'prepare': void manager.start(true); return respond({ state: manager.snapshot() })
+      case 'prepare':
+        if (manager.snapshot().stage === 'ready') void manager.startUi(true)
+        else void manager.start(true)
+        return respond({ state: manager.snapshot() })
       case 'cancel': await manager.cancel(); return respond({ state: manager.snapshot() })
-      case 'open':
-        try { await manager.openManagement(); return respond({ state: manager.snapshot(), opened: true }) }
-        catch { return respond({ state: manager.snapshot(), error: 'open-failed' }, 503) }
+      case 'start-ui': void manager.startUi(); return respond({ state: manager.snapshot() })
       default: return respond({ error: 'invalid-request' }, 400)
     }
   }

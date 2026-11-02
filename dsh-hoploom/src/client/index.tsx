@@ -65,6 +65,7 @@ export function apply(ctx: ClientContext): void {
     const alive = React.useRef(true)
     const requests = React.useRef(new Set<AbortController>())
     const generation = React.useRef(0)
+    const startingUi = React.useRef(false)
     const request = React.useCallback(async (action: string) => {
       const controller = new AbortController()
       requests.current.add(controller)
@@ -72,7 +73,7 @@ export function apply(ctx: ClientContext): void {
       try {
         const response = await fetch(API_ROUTE, { method: 'POST', credentials: 'same-origin',
           headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }), signal: controller.signal })
-        const result = await response.json() as { state?: BackendState; opened?: boolean }
+        const result = await response.json() as { state?: BackendState }
         if (!response.ok) throw new Error('request-failed')
         if (alive.current && sequence === generation.current && result.state) {
           setState(result.state); setOffline(false)
@@ -94,16 +95,25 @@ export function apply(ctx: ClientContext): void {
         for (const request of requests.current) request.abort()
       }
     }, [request])
+    React.useEffect(() => {
+      if (state?.stage !== 'ready' || state.uiStage !== null || startingUi.current) return
+      startingUi.current = true
+      void request('start-ui').catch(() => { if (alive.current) { startingUi.current = false; setOffline(true) } })
+    }, [state, request])
     async function action(value: string) {
       setBusy(true); setNotice('')
       try {
         await request(value)
-        if (alive.current && value === 'open') setNotice('opened')
       } catch {
-        if (alive.current) setNotice(value === 'open' ? 'openFailed' : 'connectionFailed')
+        if (alive.current) setNotice('connectionFailed')
       } finally { if (alive.current) setBusy(false) }
     }
-    const stage = state?.stage ?? 'checking'
+    if (state?.stage === 'ready' && state.uiStage === 'ready') return <iframe
+      title="Hoploom" src="api/dsh-hoploom/ui" style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+      sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+      allow="publickey-credentials-get 'self'; publickey-credentials-create 'self'" />
+    const stage = state?.stage === 'ready' ? state.uiStage ?? 'checking' : state?.stage ?? 'checking'
+    const error = state?.stage === 'ready' ? state.uiError : state?.error
     const active = activeStages.includes(stage)
     const progress = ({ checking: 8, waiting: 12, downloading: 25, python: 50, installing: 75, connecting: 92 } as Record<string, number>)[stage] ?? 0
     return <section className="hoploom-panel" aria-label={t('title')}>
@@ -115,12 +125,10 @@ export function apply(ctx: ClientContext): void {
           <p className="hoploom-muted">{stage === 'ready' ? t(state?.source === 'managed' ? 'managed' : 'existing') : t('automatic')}</p>
           {active && <><div className="hoploom-progress" role="progressbar" aria-label={t(stage)}><span style={{ width: progress + '%' }}/></div><p className="hoploom-muted">{t('preparing')}</p></>}
           {!active && stage !== 'ready' && <p className="hoploom-notice hoploom-muted">{t('network')}</p>}
-          {state?.error && <p className="hoploom-notice hoploom-error" role="alert">{t('failure.' + state.error)}</p>}
+          {error && <p className="hoploom-notice hoploom-error" role="alert">{t('failure.' + error)}</p>}
           {offline && <p className="hoploom-notice" role="alert">{t('connectionFailed')}</p>}
           <div className="hoploom-actions">
-            {stage === 'ready'
-              ? <button className="primary" disabled={busy || offline} onClick={() => void action('open')}>{t(busy ? 'opening' : 'open')}</button>
-              : active ? <button disabled={busy || !state || offline} onClick={() => void action('cancel')}>{t('cancel')}</button>
+            {active ? <button disabled={busy || !state || offline} onClick={() => void action('cancel')}>{t('cancel')}</button>
               : <button className="primary" disabled={busy || offline} onClick={() => void action('prepare')}>{t(stage === 'error' ? 'retry' : 'prepare')}</button>}
             <a href="https://xiayh0107.github.io/hoploom/docs/dsh-plugin.html" target="_blank" rel="noreferrer">{t('help')}</a>
           </div>

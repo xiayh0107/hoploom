@@ -1,13 +1,23 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {api,ApiError,download,json,setCsrf,stream} from './api';
 const fetchMock=vi.fn<typeof fetch>();
-beforeEach(()=>{fetchMock.mockReset();vi.stubGlobal('fetch',fetchMock);setCsrf('test-csrf');});
+beforeEach(()=>{document.querySelector('meta[name="hoploom-frame"]')?.remove();fetchMock.mockReset();vi.stubGlobal('fetch',fetchMock);setCsrf('test-csrf');});
 describe('same-origin API client',()=>{
   it('protects mutations, preserves multipart boundaries and requests no-store cookies',async()=>{
     fetchMock.mockResolvedValue(new Response('{}'));const body=new FormData();body.append('file',new File(['data'],'payload.txt'));
     await api('/hosts/a/upload',{method:'POST',body});
     const [url,options]=fetchMock.mock.calls[0];expect(url).toBe('/api/v1/hosts/a/upload');expect(options?.credentials).toBe('same-origin');expect(options?.cache).toBe('no-store');
     const headers=new Headers(options?.headers);expect(headers.get('X-CSRF-Token')).toBe('test-csrf');expect(headers.has('Content-Type')).toBe(false);
+  });
+  it('tunnels embedded requests without losing method, CSRF or multipart boundaries',async()=>{
+    const meta=document.createElement('meta');meta.name='hoploom-frame';meta.content='synthetic-frame';document.head.append(meta);
+    fetchMock.mockImplementation(async()=>new Response('{}'));
+    await api('/runtime');
+    const [url,options]=fetchMock.mock.calls[0];expect(url).toBe('./ui-api?path=%2Fruntime');expect(options?.method).toBe('POST');
+    const headers=new Headers(options?.headers);expect(headers.get('X-Hoploom-Method')).toBe('GET');expect(headers.get('X-Hoploom-Frame')).toBe('synthetic-frame');expect(headers.has('X-CSRF-Token')).toBe(false);
+    const body=new FormData();body.append('file',new File(['data'],'payload.txt'));
+    await api('/hosts/a/upload',{method:'POST',body});const upload=new Headers(fetchMock.mock.calls[1][1]?.headers);
+    expect(upload.get('X-CSRF-Token')).toBe('test-csrf');expect(upload.has('Content-Type')).toBe(false);expect(fetchMock.mock.calls[1][1]?.body).toBe(body);
   });
   it('normalizes business and HTTP errors without retrying writes',async()=>{
     fetchMock.mockResolvedValue(new Response(JSON.stringify({detail:'Permission denied'}),{status:403}));

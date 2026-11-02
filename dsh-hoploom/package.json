@@ -39,7 +39,8 @@
     "README.zh-CN.md",
     "CHANGELOG.md",
     "LICENSE",
-    "backend"
+    "backend",
+    "python/*.py"
   ],
   "icon": "icon.svg",
   "keywords": [
@@ -85,8 +86,7 @@
   },
   "dependencies": {
     "cross-spawn": "^7.0.6",
-    "fflate": "^0.8.2",
-    "open": "^10.2.0"
+    "fflate": "^0.8.2"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",

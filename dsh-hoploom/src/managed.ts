@@ -173,6 +173,7 @@ export async function prepareManagedBackend(options: {
   progress(stage: Stage): void
   verify(launch: BackendLaunch): Promise<void>
   wheelDir?: string
+  allowInstall?: boolean
 }): Promise<BackendLaunch> {
   const { root, signal, progress, verify } = options
   const wheel = await bundledWheel(options.wheelDir)
@@ -189,6 +190,7 @@ export async function prepareManagedBackend(options: {
   }
   const previous = await cached()
   if (previous) return previous
+  if (options.allowInstall === false) throw new SetupError('needs-install')
   const release = await installationLock(root, signal, () => progress('waiting'))
   let created: string | undefined
   let committed = false

@@ -4,7 +4,7 @@
 
 [Hoploom](https://github.com/xiayh0107/hoploom) for **DeepSeek Harness**. Manage
 saved SSH hosts, jump routes, working directories and host-bound skills. The
-sidebar provides setup status and a button opening Hoploom's local host manager.
+sidebar embeds Hoploom's existing host manager directly inside dsh.
 Passwords and key passphrases stay in the OS vault.
 
 ## Install
@@ -20,15 +20,16 @@ Requires **dsh 0.2.1-rc.5** and Node.js 22.19+ (22.x) or 24+. Since 0.2.0,
    ```
 
    Use `tui` instead of `web` for terminal sessions.
-2. Click **Hoploom** in the sidebar. An existing compatible installation is
-   reused; otherwise the plugin prepares its bundled backend and a private
-   Python runtime automatically. The first preparation needs internet access
-   and can take a few minutes. You can cancel or retry from this panel.
-3. Click **Open host manager** to add hosts and credentials. Then ask your agent:
+2. Click **Hoploom** in the sidebar. The plugin prepares its bundled backend
+   and private Python runtime automatically. The first preparation needs internet
+   access and can take a few minutes. You can cancel or retry from this panel.
+   MCP tools can also reuse a compatible existing Hoploom installation.
+3. The full Hoploom UI appears **inside dsh**, with hosts, ports, tags, skills,
+   credentials, audit and file management. Add hosts there, then ask your agent:
    “List my saved SSH hosts” or “Which jump hosts and directories belong to web1?”
 
-The plugin runs under the dsh backend's OS account. For remote browser sessions,
-its inventory and the host-manager browser are on that backend machine.
+The plugin runs under the dsh backend's OS account. The embedded UI uses that
+machine's inventory and vault, including when accessing dsh from elsewhere.
 No API key is needed by this plugin. Remote SSH operations require the system
 OpenSSH client and a usable OS credential vault where credentials are stored.
 
@@ -82,7 +83,7 @@ Open **Plugins → dsh-hoploom → Configuration** and edit the `dsh-hoploom` en
 | --- | --- | --- |
 | `command` | `hoploom` | Reuse a compatible installation, or prepare the bundled backend |
 | `commandArgs` | `[]` | Arguments before `mcp serve`, without shell parsing |
-| `autoInstall` | `true` | Automatically prepare a missing default backend |
+| `autoInstall` | `true` | Prepare the private runtime when needed |
 | `managedDir` | empty | Optional absolute directory for the private runtime |
 | `allowRemote` | `false` | Enable `test_host` |
 | `allowExec` | `false` | Enable `run_command`; requires `allowCommands` |
@@ -112,11 +113,17 @@ user's task authorization. Never put credentials in any plugin setting.
 
 ## Human controls and recovery
 
-The sidebar's **Open host manager** button starts the loopback-only Hoploom UI
-in the backend machine's browser. Opening the panel alone does not start it.
-An existing UI is reused; unloading the plugin only stops a UI it started.
-Launch tokens never cross the plugin API. Credential entry stays in Hoploom's
-own UI. Standalone installations also support `hoploom ui` and terminal shells
+Opening the Hoploom sidebar starts a private loopback backend and embeds the
+original Hoploom UI. No external browser is opened. This UI always uses the bundled
+backend version; its private runtime is prepared on first use even if MCP uses
+an existing CLI. Both share the configured inventory and vault. The plugin
+stops only its own processes when unloaded.
+
+UI requests use dsh's authenticated owner routes and separate browser sessions
+with Hoploom's existing CSRF and credential-reveal checks. No launch token is
+sent to the page. Passkeys require a supported HTTPS domain or localhost origin;
+native desktop and IP-address views use the existing local master-password flow
+for secret reveal. Credential entry stays in the embedded Hoploom UI. Standalone installations also support `hoploom ui` and terminal shells
 with `hoploom connect ALIAS`. Host-key trust remains a human decision.
 
 If first preparation fails, the sidebar remains usable: check the connection,
@@ -129,6 +136,8 @@ generic MCP connection named `hoploom` alongside this plugin.
 ## Development and release
 
 ```sh
+# From dsh-hoploom/: compile the same frontend source as the standalone UI.
+npm ci --prefix ../ssh-server-manager/frontend
 npm ci
 npm run build
 # This Python environment needs Hoploom's dependencies and the build package.
@@ -138,7 +147,9 @@ npm pack
 ```
 
 The wheel is built only from tracked public backend source, including its built
-UI. Tests isolate state, use the real dsh tool registry, cover the client panel,
+UI. The npm package also includes the private Python UI adapter and a build of
+that same frontend source. Tests isolate state, use the real dsh tool registry,
+cover embedded sessions, CSRF, streaming, cancellation and the client panel,
 and verify a fresh managed Python installation plus offline reuse. CI runs on
 Linux, macOS and Windows. Without `HOPLOOM_TEST_PYTHON`, existing-backend
 integration tests skip; `HOPLOOM_TEST_BOOTSTRAP=1` opts into network setup tests.

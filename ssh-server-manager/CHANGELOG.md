@@ -4,7 +4,8 @@
 
 - Improve dsh-hoploom onboarding in plugin 0.2.0: automatically prepare the
   bundled backend and private Python runtime when no usable Hoploom exists.
-  Add a native sidebar panel with progress, retry/cancel and host-manager access,
+  Add a native sidebar panel with progress, retry/cancel and the full existing UI
+  embedded inside dsh, with per-view sessions and the original API/reveal checks,
   plus `hoploom_setup` for terminal sessions. Preserve explicit command selection,
   inventory/vault locations and remote-tool opt-ins.
 

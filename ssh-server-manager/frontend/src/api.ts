@@ -1,6 +1,11 @@
 let csrf = '';
 export function setCsrf(value: string) { csrf = value; }
 
+function embeddedOrigin() {
+  // Native custom schemes may serialize location.origin as "null".
+  return location.protocol === 'dsh-app:' && location.host === 'app' ? 'dsh-app://app' : location.origin;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public existing?: Record<string, unknown>) {
     super(message); this.name = 'ApiError';
@@ -13,6 +18,13 @@ function request(path: string, options: RequestInit = {}) {
   const method = (options.method || 'GET').toUpperCase();
   if (!['GET', 'HEAD'].includes(method)) headers.set('X-CSRF-Token', csrf);
   if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const frame = document.querySelector<HTMLMetaElement>('meta[name="hoploom-frame"]')?.content;
+  if (frame) {
+    headers.set('X-Hoploom-Frame', frame);
+    headers.set('X-Hoploom-Origin', embeddedOrigin());
+    headers.set('X-Hoploom-Method', method);
+    return fetch(`./ui-api?path=${encodeURIComponent(path)}`, {...options, method: 'POST', headers, credentials: 'same-origin', cache: 'no-store'});
+  }
   return fetch(`/api/v1${path}`, {...options, method, headers, credentials: 'same-origin', cache: 'no-store'});
 }
 
@@ -70,3 +82,12 @@ export async function stream(path: string, body: unknown, onEvent: (event: Recor
 }
 
 export const segment = encodeURIComponent;
+
+/** Release only this embedded browser session; no host action is replayed. */
+export function releaseEmbeddedView() {
+  const frame = document.querySelector<HTMLMetaElement>('meta[name="hoploom-frame"]')?.content;
+  if (!frame) return;
+  void fetch('./ui-api?path=%2F_frame', {method:'POST', keepalive:true, credentials:'same-origin',
+    headers:{'X-Hoploom-Frame':frame, 'X-Hoploom-Origin':embeddedOrigin(), 'X-Hoploom-Method':'DELETE'},
+  }).catch(()=>{});
+}

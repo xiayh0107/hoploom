@@ -30,6 +30,7 @@ jobs:
         working-directory: dsh-hoploom
         run: node --input-type=module -e 'import fs from "node:fs"; const p = JSON.parse(fs.readFileSync("package.json")); if (process.env.GITHUB_REF_NAME !== "dsh-hoploom-v" + p.version) process.exit(1)'
       - run: python -m pip install build ./ssh-server-manager
+      - run: npm ci --ignore-scripts --prefix ssh-server-manager/frontend
       - run: npm ci --ignore-scripts --prefix dsh-hoploom
       - run: npm run build:backend --prefix dsh-hoploom
         env:

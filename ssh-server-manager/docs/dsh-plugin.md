@@ -2,7 +2,7 @@
 
 `dsh-hoploom` connects DeepSeek Harness to Hoploom through its official stdio
 MCP bridge. Version **0.2.0** supports **dsh 0.2.1-rc.5** and adds automatic
-backend preparation plus a native sidebar panel.
+backend preparation plus the full existing Hoploom UI inside a native sidebar panel.
 
 ## Install and use
 
@@ -18,12 +18,14 @@ Use `tui` for terminal sessions. A downloaded release's absolute `.tgz` path als
 works. For CLI changes to the `desktop` profile, fully quit the desktop app first;
 use its Plugins page while it is open.
 
-Click **Hoploom** in the sidebar. The plugin reuses a compatible existing install,
-or prepares its bundled Hoploom 0.11.0 and private Python runtime in the background.
+Click **Hoploom** in the sidebar. The plugin prepares its bundled Hoploom 0.11.0
+and private Python runtime in the background. MCP tools can also reuse a compatible
+existing install; the UI always uses the bundled version and the same state directories.
 The first preparation needs internet access and may take a few minutes. The panel
 shows progress and offers cancel/retry, even after a preparation failure.
-Click **Open host manager** to add hosts and credentials, then ask the agent to
-list hosts, resolve jump routes or find saved working directories.
+The original Hoploom UI appears directly inside dsh, including hosts, ports, tags,
+skills, credentials, audit and file management. Add hosts and credentials there,
+then ask the agent to list hosts, resolve jump routes or find working directories.
 
 Automatic preparation supports macOS, Windows and Linux (glibc), on x64 and
 ARM64. It downloads checksum-pinned uv from Astral's official GitHub release,
@@ -34,11 +36,16 @@ OpenSSH and a working OS vault are still needed for their respective SSH and
 credential operations.
 
 The plugin operates on the **dsh backend machine**, under its OS account. This
-also applies when the browser is elsewhere. The host-manager button opens that
-machine's browser, and the management server remains loopback-only. The plugin
-panel never receives the secret launch URL. Opening the panel alone does not
-start this UI or connect to SSH hosts. A pre-existing UI is reused; unloading
-only stops a UI the plugin itself started.
+also applies when the browser is elsewhere. The UI stays inside dsh and its private
+backend remains loopback-only. No external browser is opened or launch URL sent
+to the page. Opening the panel starts the private UI, without connecting to SSH
+hosts. Unloading stops only plugin-owned processes; standalone UI instances are
+unaffected.
+
+Each view has an independent browser session. Requests pass through authenticated
+dsh owner routes and retain Hoploom's CSRF and credential-reveal checks. Passkeys
+need a supported HTTPS domain or localhost origin. Native desktop and IP-address
+views use the existing local master-password flow for secret reveal.
 
 ## Tools and configuration
 
@@ -55,7 +62,7 @@ In **Plugins → dsh-hoploom → Configuration**, edit the `dsh-hoploom` entry:
 | --- | --- | --- |
 | `command` | `hoploom` | Reuse a usable local installation or prepare the bundled backend |
 | `commandArgs` | `[]` | Prefix arguments before `mcp serve`, without shell parsing |
-| `autoInstall` | `true` | Prepare a missing default backend automatically |
+| `autoInstall` | `true` | Prepare the private runtime when needed |
 | `managedDir` | empty | Optional absolute private-runtime directory |
 | `allowRemote` | `false` | Enable `test_host` |
 | `allowExec` | `false` | Enable `run_command`, requiring `allowCommands` |
@@ -104,7 +111,7 @@ and the [official dsh APIs](https://github.com/deepseek-ai/deepseek-harness).
 1. `package.json` declares the bundle patch, client factory, supported harness
    version, locale exports and explicit npm files.
 2. The host entry validates configuration and registers the recovery tool and
-   authenticated owner-only Fetch route. Backend preparation runs asynchronously,
+   authenticated owner-only Fetch routes. Backend preparation runs asynchronously,
    so the client entry remains available when it fails.
 3. A verified Python wheel is built from tracked public backend source only.
    uv archives are pinned to version and SHA256, extracted only for the expected
@@ -116,6 +123,12 @@ and the [official dsh APIs](https://github.com/deepseek-ai/deepseek-harness).
 5. The browser factory uses dsh's official `sidebar.panellist` and `main` slots,
    with shared React and locale services. Its setup endpoint accepts a fixed set
    of actions; it cannot change remote-tool policy or return credentials.
+6. An iframe loads a separate build of the existing React UI from the same
+   frontend source. A private Python adapter hosts the existing FastAPI app,
+   receives a random transport key through stdin and maps each view to an
+   independent Hoploom session. The dsh owner route tunnels requests only to
+   that owned loopback listener, preserving streaming and cancellation. The
+   standalone UI's launch flow and framing restrictions remain unchanged.
 
 A bounded `mcp serve --help` probe exits before opening the database, vault or
 SSH client. Subprocesses use dsh's scrubbed environment. Installation output and
@@ -127,6 +140,7 @@ not install a second protocol implementation or duplicate backend schemas.
 From the repository root:
 
 ```sh
+npm ci --prefix ssh-server-manager/frontend
 npm ci --prefix dsh-hoploom
 npm run build --prefix dsh-hoploom
 HOPLOOM_BUILD_PYTHON=/absolute/path/to/python npm run build:backend --prefix dsh-hoploom
@@ -136,9 +150,12 @@ npm pack ./dsh-hoploom --pack-destination /absolute/path/to/output
 
 The build Python needs `build` and Hoploom's dependencies. Tests isolate state
 and exercise real MCP tools, permissions, cleanup, runtime downloads, concurrent
-installation, cancellation, offline reuse and the built client panel. CI runs
+installation, cancellation, offline reuse, the built client panel and embedded
+sessions/CSRF/streaming. Frontend changes also require the frontend build and
+checks documented in AGENTS.md. CI runs
 on macOS, Linux and Windows. Before release, install the tarball into a disposable
-`DSH_HOME` and verify sidebar registration, setup status and tool discovery.
+`DSH_HOME` and verify sidebar registration, embedded UI operations, setup status
+and tool discovery.
 Never use production inventory for release tests.
 
 Bump `dsh-hoploom/package.json` and its lockfile, update its changelog and tarball
