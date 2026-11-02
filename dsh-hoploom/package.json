@@ -1,0 +1,54 @@
+{
+  "name": "dsh-hoploom",
+  "version": "0.1.0",
+  "description": "Hoploom for DeepSeek Harness: local SSH inventory, host context and explicitly enabled remote operations, with credentials kept in the OS vault.",
+  "type": "module",
+  "license": "MIT",
+  "author": "xiayh0107",
+  "homepage": "https://github.com/xiayh0107/hoploom/tree/main/dsh-hoploom",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiayh0107/hoploom.git",
+    "directory": "dsh-hoploom"
+  },
+  "bugs": { "url": "https://github.com/xiayh0107/hoploom/issues" },
+  "engines": { "node": "^22.19.0 || >=24.0.0", "dsh": "0.2.1-rc.5" },
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["lib", "cordis.patch.yml", "icon.svg", "locale/*.json", "README.md", "README.zh-CN.md", "CHANGELOG.md", "LICENSE"],
+  "icon": "icon.svg",
+  "keywords": ["deepseek-harness", "dsh", "dsh-plugin", "cordis-plugin", "hoploom", "ssh", "mcp", "keychain"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "compatibility": { "dshReleases": { "0.2.1-rc.5": "compatible" } }
+  },
+  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.mjs",
+    "check": "npm run build && npm test",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "~3.18.5"
+  },
+  "peerDependenciesMeta": { "@deepseek-ai/dsh-system-prompt": { "optional": true } },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/schemastery": "3.18.5",
+    "@types/node": "^22.19.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -15,6 +15,8 @@ See `ssh-server-manager/docs/migration.md`; do not globally replace them.
 - `ssh-server-manager/` — the product: `hoploom` CLI + loopback FastAPI web
   UI + OS-keychain vault, shipped as a Python package and as an Agent Skill.
 - `website/` — the landing page published by the `pages.yml` workflow.
+- `dsh-hoploom/` — the independently versioned npm plugin for DeepSeek Harness.
+  It uses the official dsh MCP client and the existing local Hoploom backend.
 - `install.sh` / `install.ps1` — one-line agent-skill installers users pipe
   from GitHub; treat their public URLs as a stable contract.
 - Gitignored directories at the repo root are private local workspaces:
@@ -112,6 +114,24 @@ The skill's conversation-level UX is a product feature: judge SKILL.md
 changes against real agent transcripts (would an agent following this reply
 in seconds, without option menus, without hanging on a TTY?), not just
 against command coverage.
+
+## DeepSeek Harness plugin
+
+Work from `dsh-hoploom/`: `npm ci`, `npm run build`, then
+`HOPLOOM_TEST_PYTHON=/absolute/path/to/python npm test`. The Python environment
+must have Hoploom's dependencies installed. Integration tests use isolated state;
+without that variable they skip. `npm pack` builds the release tarball, and the
+`files` allowlist excludes source, tests, dependencies and local state.
+
+Keep MCP schemas, SSH policy and vault operations in the Python backend. The
+adapter discovers tools through the official bridge; it must not bypass disabled
+remote tools or add credentials to configuration. Test package loading in a
+disposable `DSH_HOME`, not the developer's active profile.
+
+The plugin's version lives in its `package.json` and lockfile, with release notes
+in its own `CHANGELOG.md`. Use `dsh-hoploom-vX.Y.Z` tags; the Python release steps
+below apply only to the Python distribution. See `docs/dsh-plugin.md` under
+`ssh-server-manager/` for npm publication and trusted-publisher setup.
 
 ## Safety rules (mirror SKILL.md — they bind development too)
 

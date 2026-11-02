@@ -1,0 +1,4 @@
+# The official MCP client owns protocol, tool registration and process cleanup.
+- insert:
+    - id: dsh-hoploom
+      name: dsh-hoploom

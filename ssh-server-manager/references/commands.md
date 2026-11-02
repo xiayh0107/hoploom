@@ -361,6 +361,12 @@ about address routing, not a statement about where data is stored.
 
 ## MCP server
 
+DeepSeek Harness can install the `dsh-hoploom` adapter with
+`dsh plugin --profile web add dsh-hoploom`; use `tui` for the terminal profile.
+It runs a local Hoploom executable with the policy below and defaults to
+metadata queries. Configure remote access in the plugin settings, never by
+working around a missing tool. See [the plugin guide](../docs/dsh-plugin.md).
+
 ```bash
 ./scripts/hoploom mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]
                                 [--http] [--port N] [--token-file PATH]

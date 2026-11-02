@@ -90,6 +90,8 @@ SECTIONS: list[tuple[str, list[Page]]] = [
                  "Shared application services, runtime lifecycle and API v1 contracts."),
             Page(PKG / "docs/ai-agents.md", "ai-agents", "AI agents",
                  "How an agent uses the tool without ever seeing a secret."),
+            Page(PKG / "docs/dsh-plugin.md", "dsh-plugin", "DeepSeek Harness",
+                 "Install and configure the dsh-hoploom plugin."),
             Page(PKG / "docs/mounting.md", "mounting", "Mounting",
                  "Expose a host's directory locally through sshfs."),
         ],

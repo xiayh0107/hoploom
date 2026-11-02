@@ -164,6 +164,11 @@ Connection failures are classified — authentication failure, untrusted host ke
 
 ### One-line Agent Skill deployment
 
+For **DeepSeek Harness**, install the local Hoploom backend below, then run
+`dsh plugin --profile web add dsh-hoploom`. The
+[dsh plugin](dsh-hoploom/README.md) supplies inventory/context tools and
+explicitly enabled remote operations. [中文说明](dsh-hoploom/README.zh-CN.md).
+
 macOS / Linux:
 
 ```bash
@@ -512,6 +517,7 @@ Product source, detailed docs, and the Agent Skill live in [`ssh-server-manager/
 ```text
 hoploom/
 ├── ssh-server-manager/     # Product source, CLI, Web UI, docs and Agent Skill
+├── dsh-hoploom/            # DeepSeek Harness plugin (independent npm package)
 ├── website/                # Project website
 ├── install.sh              # macOS / Linux installer
 ├── install.ps1             # Windows installer

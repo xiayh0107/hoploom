@@ -656,6 +656,12 @@ Behaviour worth knowing:
 
 ## MCP server
 
+For DeepSeek Harness, install the separately versioned `dsh-hoploom` plugin
+with `dsh plugin --profile web add dsh-hoploom`. It discovers these MCP tools
+from the local Hoploom executable and defaults to metadata-only access.
+Remote checks and allowlisted execution are explicit plugin settings; disabled
+tools must not be bypassed with a shell. See [DeepSeek Harness](dsh-plugin.md).
+
 ```
 hoploom mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]
                     [--http] [--port N] [--token-file PATH]

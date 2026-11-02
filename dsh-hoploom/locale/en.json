@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Hoploom",
+    "description": "Local SSH inventory and host context, with optional remote checks and allowlisted commands. Credentials stay in the OS vault."
+  }
+}

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add the independently versioned `dsh-hoploom` DeepSeek Harness plugin
+  (0.1.0), using the official dsh MCP client and Hoploom's existing stdio
+  backend. It defaults to six metadata tools, supports explicit remote checks
+  and command allowlists, and injects target-first agent instructions.
+  Ship English/Chinese installation docs, isolated backend integration tests,
+  cross-platform CI and a separate npm release workflow. Plugin release tags
+  cannot trigger Python publication.
+
 - Rename the product, distribution, primary CLI, Agent Skill and MCP identity to
   **Hoploom**. `hoploom` is the canonical command; `serverctl` remains a silent
   compatibility entry point with the same arguments, exit codes and JSON output.

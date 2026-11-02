@@ -22,3 +22,7 @@ ssh-server-manager/frontend/playwright-report/
 
 # transient tool caches (gh log downloads when XDG_CACHE_HOME is redirected)
 .gh-cache/
+
+# DeepSeek Harness plugin build and release artifacts
+dsh-hoploom/lib/
+dsh-hoploom/*.tgz

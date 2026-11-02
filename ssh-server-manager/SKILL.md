@@ -14,6 +14,14 @@ loopback-only, needs a per-launch bearer token (`--token-file` keeps it out of a
 terminal transcript), and refuses browser origins, so it is not a way to reach
 this inventory from a web page.
 
+For DeepSeek Harness, the `dsh-hoploom` plugin installs this MCP integration
+and its target-first instructions: `dsh plugin --profile web add dsh-hoploom`.
+See `docs/dsh-plugin.md`. Its tools use the `mcp__hoploom__` prefix and default
+to local metadata only. Use `list_hosts`, then `host_skills` for selected hosts.
+Remote tools require the operator's plugin settings; never bypass a disabled
+tool with raw SSH or shell execution. The local Hoploom installation is still
+required, and secret entry remains in the human's UI or terminal.
+
 ## First: route through `hoploom`, not raw ssh
 
 - The package and command are both `hoploom`. Resolve it from PATH, then
