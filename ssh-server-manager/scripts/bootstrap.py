@@ -15,6 +15,12 @@ def main() -> int:
         venv.EnvBuilder(with_pip=True).create(environment)
     python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     subprocess.run([str(python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
+    # The renamed distribution owns the same Python modules. Remove the old
+    # distribution's metadata/files first, inside this checkout's venv only.
+    legacy = subprocess.run([str(python), "-m", "pip", "show", "ssh-server-manager"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if legacy.returncode == 0:
+        subprocess.run([str(python), "-m", "pip", "uninstall", "-y", "ssh-server-manager"], check=True)
     subprocess.run([str(python), "-m", "pip", "install", "-e", f"{root}[test]"], check=True)
     print(f"Ready: {python}")
     return 0

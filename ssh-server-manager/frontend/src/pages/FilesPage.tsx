@@ -319,7 +319,7 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
     uploadDestination.current = null;
     if (!file || !destination) return;
     if (!filenameValid(file.name)) {setTransferError(new Error('The filename cannot contain a slash, a control character, or be . or ..')); return;}
-    if (!transfersAvailable || file.size > maxBytes) {setTransferError(new Error(`Web uploads are limited to ${bytes(maxBytes)}. Use serverctl put for larger files.`)); return;}
+    if (!transfersAvailable || file.size > maxBytes) {setTransferError(new Error(`Web uploads are limited to ${bytes(maxBytes)}. Use hoploom put for larger files.`)); return;}
     const upload = Object.freeze({...destination, path: joinRemote(destination.directory, file.name), file});
     void sendUpload(upload);
   }
@@ -440,7 +440,7 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
           </div>)}
           {!paths[host.id]?.length && !pathsError && <p className="files-saved-empty">Save a folder to return to it quickly.</p>}
           <h2 className="rail-label rail-places">Places</h2><button className="files-place" onClick={() => navigate()}>Home <span className="mono">~</span></button><button className="files-place" onClick={() => navigate('/')}>Root <span className="mono">/</span></button>
-          <p className="files-transfer-hint">Web transfers up to {bytes(maxBytes)}.<br/>Larger files: <span className="mono">serverctl get / put</span>.</p>
+          <p className="files-transfer-hint">Web transfers up to {bytes(maxBytes)}.<br/>Larger files: <span className="mono">hoploom get / put</span>.</p>
         </aside>
         <div className="files-list">
           {/* The managed-config warning above already names this failure; a second copy only repeats it. */}
@@ -451,7 +451,7 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
               <tbody>{listing.parent && <tr className="files-parent-row"><td><button className="files-name" onClick={() => navigate(listing.parent || undefined)}><span className="files-entry-icon"><Icon name="up" size={16}/></span><span className="mono">..</span></button></td><td colSpan={5}/></tr>}{entries.slice(0, visibleCount).map(entry => {
                 const knownSize = Number.isFinite(entry.size) && entry.size >= 0;
                 const allowed = entry.type === 'file' && transfersAvailable && knownSize && entry.size <= maxBytes;
-                const restriction = entry.type === 'symlink' ? 'Symlink target size cannot be verified. Use serverctl get.' : entry.type === 'special' ? 'Special files cannot be downloaded in the browser.' : !knownSize ? 'File size unavailable · use CLI' : entry.size > maxBytes ? `Over ${bytes(maxBytes)} · use CLI` : !transfersAvailable ? 'Web transfer limit unavailable.' : '';
+                const restriction = entry.type === 'symlink' ? 'Symlink target size cannot be verified. Use hoploom get.' : entry.type === 'special' ? 'Special files cannot be downloaded in the browser.' : !knownSize ? 'File size unavailable · use CLI' : entry.size > maxBytes ? `Over ${bytes(maxBytes)} · use CLI` : !transfersAvailable ? 'Web transfer limit unavailable.' : '';
                 const isSelected = selected?.path === entry.path;
                 return <tr key={entry.path} className={isSelected ? 'selected' : ''} onClick={() => updateTab(activeTab.id, {selected: entry.path})}>
                   <td><button className="files-name" onClick={() => entry.type === 'directory' ? navigate(entry.path) : updateTab(activeTab.id, {selected: entry.path})}><span className={`files-entry-icon ${entry.type}`}><Icon name={entry.type === 'directory' ? 'folder' : entry.type === 'symlink' ? 'link' : 'file'} size={16}/></span><strong>{entry.name}</strong>{entry.type === 'symlink' && <span className="files-link-target">→ {entry.link_target || 'target unavailable'}</span>}</button>{restriction && entry.type === 'file' && <span className="files-limit-badge">{restriction}</span>}</td>

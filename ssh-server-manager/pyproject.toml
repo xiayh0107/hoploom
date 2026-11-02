@@ -1,6 +1,6 @@
 [project]
-name = "ssh-server-manager"
-version = "0.10.1"
+name = "hoploom"
+version = "0.11.0"
 description = "Local-first SSH host and credential manager for humans and AI agents — OS-keychain vault, loopback web UI, agent-safe by design"
 readme = "README.md"
 license = {text = "MIT"}
@@ -35,17 +35,18 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://xiayh0107.github.io/servers-connect/"
-Repository = "https://github.com/xiayh0107/servers-connect"
-Documentation = "https://xiayh0107.github.io/servers-connect/docs/"
-Changelog = "https://github.com/xiayh0107/servers-connect/blob/main/ssh-server-manager/CHANGELOG.md"
+Homepage = "https://xiayh0107.github.io/hoploom/"
+Repository = "https://github.com/xiayh0107/hoploom"
+Documentation = "https://xiayh0107.github.io/hoploom/docs/"
+Changelog = "https://github.com/xiayh0107/hoploom/blob/main/ssh-server-manager/CHANGELOG.md"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-serverctl = "ssh_server_manager.cli:main"
+hoploom = "ssh_server_manager.cli:main"
+serverctl = "ssh_server_manager.cli:legacy_main"
 ssh-server-manager-askpass = "ssh_server_manager.askpass:main"
 
 [tool.setuptools]

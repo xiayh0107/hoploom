@@ -1,18 +1,22 @@
-# servers-connect
+# Hoploom
 
 > **A local-first secure server access layer for humans and AI agents.**
 
 Manage SSH hosts, credentials, remote access, and host-specific agent context from one deterministic interface — without putting secrets in config files, shell history, or an AI model's context.
 
-[Website](https://xiayh0107.github.io/servers-connect/) · [Documentation](ssh-server-manager/docs/) · [Product README](ssh-server-manager/README.md) · [简体中文](ssh-server-manager/README.zh-CN.md)
+[Website](https://xiayh0107.github.io/hoploom/) · [Documentation](ssh-server-manager/docs/) · [Product README](ssh-server-manager/README.md) · [简体中文](ssh-server-manager/README.zh-CN.md)
 
-[![test](https://github.com/xiayh0107/servers-connect/actions/workflows/test.yml/badge.svg)](https://github.com/xiayh0107/servers-connect/actions/workflows/test.yml)
-[![release](https://img.shields.io/github/v/release/xiayh0107/servers-connect)](https://github.com/xiayh0107/servers-connect/releases)
+Previously **SSH Server Manager** / `servers-connect`. Existing `serverctl`
+commands remain compatible; follow the [upgrade guide](ssh-server-manager/docs/migration.md)
+to migrate an existing installation without changing its data or vault entries.
+
+[![test](https://github.com/xiayh0107/hoploom/actions/workflows/test.yml/badge.svg)](https://github.com/xiayh0107/hoploom/actions/workflows/test.yml)
+[![release](https://img.shields.io/github/v/release/xiayh0107/hoploom)](https://github.com/xiayh0107/hoploom/releases)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ---
 
-## Why servers-connect?
+## Why Hoploom?
 
 OpenSSH is excellent at transport. The hard part is everything around it:
 
@@ -22,7 +26,7 @@ OpenSSH is excellent at transport. The hard part is everything around it:
 - keeping environment-specific procedures attached to the hosts where they actually apply;
 - providing one consistent interface across macOS, Linux, and Windows.
 
-`servers-connect` puts a small local control layer around OpenSSH.
+`Hoploom` puts a small local control layer around OpenSSH.
 
 ```text
                   Human
@@ -31,7 +35,7 @@ OpenSSH is excellent at transport. The hard part is everything around it:
                     │
                     ▼
         ┌───────────────────────┐
-        │      serverctl        │
+        │        hoploom        │
         │                       │
         │  Host inventory       │
         │  Credential routing   │
@@ -60,7 +64,7 @@ The core idea is simple:
 
 A managed server is more than an IP address.
 
-| Layer | What servers-connect knows |
+| Layer | What Hoploom knows |
 |---|---|
 | **Identity** | alias, hostname, port, username, tags, notes, ProxyJump chain |
 | **Credential** | password, private-key reference, key passphrase, ssh-agent/OpenSSH defaults |
@@ -76,13 +80,13 @@ ssh -J user@bastion.example.com deploy@10.0.2.7
 into this:
 
 ```bash
-serverctl connect db1
+hoploom connect db1
 ```
 
 And for an AI agent:
 
 ```bash
-serverctl exec db1 --json -- uptime
+hoploom exec db1 --json -- uptime
 ```
 
 ---
@@ -98,16 +102,16 @@ Passwords and key passphrases live in the operating system's native credential v
 | Linux | Secret Service |
 | Private keys | Existing local file; only the absolute path is stored |
 
-`serverctl` does **not** inject secrets through command-line arguments, environment variables, config files, or shell history.
+`hoploom` does **not** inject secrets through command-line arguments, environment variables, config files, or shell history.
 
 Authentication is handled out-of-band through OpenSSH AskPass:
 
 ```text
 AI Agent
    │
-   │ serverctl exec gpu01 ...
+   │ hoploom exec gpu01 ...
    ▼
-serverctl
+hoploom
    │
    │ credential identifier
    ▼
@@ -135,25 +139,25 @@ See the full [security model](ssh-server-manager/docs/security.md).
 
 The project ships as an [Agent Skill](ssh-server-manager/SKILL.md) for Claude Code, Codex, Gemini CLI, Cursor, and other Agent Skills-compatible clients.
 
-For managed hosts, agents are instructed to use `serverctl` instead of improvising with raw `ssh`, `scp`, `sftp`, `rsync`, or `sshpass`.
+For managed hosts, agents are instructed to use `hoploom` instead of improvising with raw `ssh`, `scp`, `sftp`, `rsync`, or `sshpass`.
 
 That gives agents a deterministic, machine-readable interface:
 
 ```bash
 # Discover available hosts
-serverctl server list --json
+hoploom server list --json
 
 # Test connectivity
-serverctl server test gpu01 --json
+hoploom server test gpu01 --json
 
 # Run a remote command
-serverctl exec gpu01 --json -- nvidia-smi
+hoploom exec gpu01 --json -- nvidia-smi
 
 # Transfer a file
-serverctl get gpu01:/data/results.csv ./
+hoploom get gpu01:/data/results.csv ./
 
 # Resolve locally saved working paths
-serverctl path resolve gpu01 --json
+hoploom path resolve gpu01 --json
 ```
 
 Connection failures are classified — authentication failure, untrusted host key, timeout, DNS failure, and more — so an agent can branch on structured results instead of parsing prose.
@@ -163,23 +167,23 @@ Connection failures are classified — authentication failure, untrusted host ke
 macOS / Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xiayh0107/servers-connect/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/xiayh0107/hoploom/main/install.sh | sh
 ```
 
 Windows:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/xiayh0107/servers-connect/main/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/xiayh0107/hoploom/main/install.ps1 | iex"
 ```
 
-The installer installs dependencies, exposes `serverctl`, links the skill into detected local agents, and runs `serverctl doctor`.
+The installer installs dependencies, exposes `hoploom`, links the skill into detected local agents, and runs `hoploom doctor`.
 
 Only the CLI and Web UI, without the skill links:
 
 ```bash
-pipx install ssh-server-manager
+pipx install hoploom
 # or
-brew install xiayh0107/tap/ssh-server-manager
+brew install xiayh0107/tap/hoploom
 ```
 
 ---
@@ -198,7 +202,7 @@ Connecting to a server is only half the problem. After connecting, an agent may 
 
 That information should not live in one giant global prompt.
 
-`servers-connect` lets local Agent Skills be explicitly associated with the hosts where they apply:
+`Hoploom` lets local Agent Skills be explicitly associated with the hosts where they apply:
 
 ```text
 gpu-login ───────┐
@@ -213,8 +217,8 @@ production-web ───── production-runbook
 The workflow is **target first, context second**:
 
 ```bash
-serverctl server list --json
-serverctl skill resolve gpu-node-01 --json
+hoploom server list --json
+hoploom skill resolve gpu-node-01 --json
 ```
 
 A host-skill binding is relevance metadata, not authorization. It does not grant permission to operate on a machine or bypass normal credential and host-key rules.
@@ -223,21 +227,21 @@ Manage bindings explicitly:
 
 ```bash
 # Discover local skills without downloading or installing anything
-serverctl skill discover --json
+hoploom skill discover --json
 
 # Register one and bind it to selected hosts
-serverctl skill add ~/.agents/skills/gpu-ops \
+hoploom skill add ~/.agents/skills/gpu-ops \
   --server gpu-node-01 \
   --server gpu-node-02 \
   --json
 
 # Resolve context for the current target
-serverctl skill resolve gpu-node-01 --json
+hoploom skill resolve gpu-node-01 --json
 ```
 
 When the target changes, agents are expected to resolve again instead of carrying host-specific context across environments.
 
-See [Using SSH Server Manager with AI agents](ssh-server-manager/docs/ai-agents.md).
+See [Using Hoploom with AI agents](ssh-server-manager/docs/ai-agents.md).
 
 ---
 
@@ -246,27 +250,27 @@ See [Using SSH Server Manager with AI agents](ssh-server-manager/docs/ai-agents.
 ### From source
 
 ```bash
-git clone https://github.com/xiayh0107/servers-connect.git
-cd servers-connect/ssh-server-manager
+git clone https://github.com/xiayh0107/hoploom.git
+cd hoploom/ssh-server-manager
 
 ./scripts/bootstrap
-./scripts/serverctl doctor
+./scripts/hoploom doctor
 ```
 
-Once installed, use `serverctl` directly from PATH.
+Once installed, use `hoploom` directly from PATH.
 
 ### Import the SSH hosts you already have
 
 Preview first:
 
 ```bash
-serverctl server import
+hoploom server import
 ```
 
 Apply explicitly:
 
 ```bash
-serverctl server import --apply
+hoploom server import --apply
 ```
 
 The importer follows OpenSSH `Include` directives and resolves aliases through `ssh -G`. Your original `~/.ssh/config` is read but never rewritten.
@@ -274,7 +278,7 @@ The importer follows OpenSSH `Include` directives and resolves aliases through `
 ### Add a credential
 
 ```bash
-serverctl credential add-password work-password
+hoploom credential add-password work-password
 ```
 
 The password is entered through a hidden local prompt and stored in the OS credential vault.
@@ -282,7 +286,7 @@ The password is entered through a hidden local prompt and stored in the OS crede
 Private key:
 
 ```bash
-serverctl credential add-key deploy-key \
+hoploom credential add-key deploy-key \
   --key-path ~/.ssh/id_ed25519 \
   --store-passphrase
 ```
@@ -290,7 +294,7 @@ serverctl credential add-key deploy-key \
 Or use ssh-agent / normal OpenSSH defaults:
 
 ```bash
-serverctl credential add-agent default-agent
+hoploom credential add-agent default-agent
 ```
 
 There is deliberately no normal CLI command that dumps a stored password back to stdout.
@@ -298,7 +302,7 @@ There is deliberately no normal CLI command that dumps a stored password back to
 ### Add and use a server
 
 ```bash
-serverctl server add web1 \
+hoploom server add web1 \
   --hostname web1.example.com \
   --username deploy \
   --credential work-password
@@ -307,16 +311,16 @@ serverctl server add web1 \
 Then:
 
 ```bash
-serverctl server test web1
-serverctl connect web1
-serverctl exec web1 -- uptime
-serverctl exec web1 --json -- systemctl is-active nginx
+hoploom server test web1
+hoploom connect web1
+hoploom exec web1 -- uptime
+hoploom exec web1 --json -- systemctl is-active nginx
 ```
 
 Use `--shell` for pipelines or compound shell expressions:
 
 ```bash
-serverctl exec web1 --shell -- 'du -sh /var/log/* | sort -h | tail -5'
+hoploom exec web1 --shell -- 'du -sh /var/log/* | sort -h | tail -5'
 ```
 
 ---
@@ -326,11 +330,11 @@ serverctl exec web1 --shell -- 'du -sh /var/log/* | sort -h | tail -5'
 Bastions are modeled as ordinary managed hosts:
 
 ```bash
-serverctl server add bastion \
+hoploom server add bastion \
   --hostname bastion.example.com \
   --username jump
 
-serverctl server add db1 \
+hoploom server add db1 \
   --hostname 10.0.2.7 \
   --username dba \
   --proxy-jump bastion
@@ -345,14 +349,14 @@ ProxyJump chains are ordered and checked for loops.
 Resolve remembered working directories before searching blindly:
 
 ```bash
-serverctl path resolve gpu01 --json
+hoploom path resolve gpu01 --json
 ```
 
 Transfer individual files through the same credential and host-key boundary:
 
 ```bash
-serverctl get gpu01:/remote/result.csv ./
-serverctl put ./config.yaml gpu01:/remote/config.yaml
+hoploom get gpu01:/remote/result.csv ./
+hoploom put ./config.yaml gpu01:/remote/config.yaml
 ```
 
 The Files page browses SFTP directories, uploads with conflict confirmation, and downloads ordinary files within the runtime transfer limit.
@@ -362,7 +366,7 @@ The Files page browses SFTP directories, uploads with conflict confirmation, and
 ## Local Web UI
 
 ```bash
-serverctl ui
+hoploom ui
 ```
 
 opens a management interface that listens only on loopback.
@@ -383,15 +387,15 @@ The UI uses a one-time launch token, Origin/Host validation, CSRF protection, a 
 Check or stop a background UI:
 
 ```bash
-serverctl ui --status
-serverctl ui --stop
+hoploom ui --status
+hoploom ui --stop
 ```
 
 ---
 
 ## Host-key verification is never bypassed
 
-`servers-connect` does not weaken OpenSSH host-key verification.
+`Hoploom` does not weaken OpenSSH host-key verification.
 
 An unknown or changed host key fails with a classified `host-key-untrusted` error. There is intentionally no convenience switch that silently turns on `StrictHostKeyChecking=no`.
 
@@ -401,7 +405,7 @@ Verify the fingerprint and resolve the trust decision explicitly.
 
 ## Local-first by design
 
-There is no servers-connect cloud account required to hold your SSH inventory or credentials.
+There is no Hoploom cloud account required to hold your SSH inventory or credentials.
 
 ```text
 Host metadata
@@ -429,7 +433,7 @@ The trust boundary is your local OS user account, similar to OpenSSH's trust mod
 
 ---
 
-## What servers-connect is — and is not
+## What Hoploom is — and is not
 
 ### It is
 
@@ -491,13 +495,14 @@ See [platform notes](ssh-server-manager/docs/platforms.md) for details.
 |---|---|
 | [Quickstart](ssh-server-manager/docs/quickstart.md) | From installation to first managed host |
 | [Installation](ssh-server-manager/docs/installation.md) | Installation methods and dependencies |
-| [CLI reference](ssh-server-manager/docs/cli.md) | Complete `serverctl` command surface |
+| [CLI reference](ssh-server-manager/docs/cli.md) | Complete `hoploom` command surface |
 | [Web UI](ssh-server-manager/docs/web-ui.md) | Local management interface |
 | [AI agents](ssh-server-manager/docs/ai-agents.md) | Agent Skill deployment and host-specific context |
 | [Security model](ssh-server-manager/docs/security.md) | Trust boundaries and security invariants |
 | [Platforms](ssh-server-manager/docs/platforms.md) | macOS, Linux, and Windows behavior |
 | [FAQ](ssh-server-manager/docs/faq.md) | Common questions and troubleshooting |
 
+The `ssh-server-manager/` source path is retained for existing source installations.
 Product source, detailed docs, and the Agent Skill live in [`ssh-server-manager/`](ssh-server-manager/).
 
 ---
@@ -505,7 +510,7 @@ Product source, detailed docs, and the Agent Skill live in [`ssh-server-manager/
 ## Repository structure
 
 ```text
-servers-connect/
+hoploom/
 ├── ssh-server-manager/     # Product source, CLI, Web UI, docs and Agent Skill
 ├── website/                # Project website
 ├── install.sh              # macOS / Linux installer
@@ -534,7 +539,7 @@ servers-connect/
 
 A server is not merely an address. For a human or an AI agent, it is an environment with an identity, an authentication boundary, relevant operational knowledge, and a controlled set of actions.
 
-`servers-connect` keeps those pieces together.
+`Hoploom` keeps those pieces together.
 
 ---
 

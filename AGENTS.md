@@ -6,7 +6,13 @@ agent *using* the product to manage SSH servers, read
 
 ## What this repo is
 
-- `ssh-server-manager/` — the product: `serverctl` CLI + loopback FastAPI web
+The public product, package, CLI and Skill name is **Hoploom** (`hoploom`).
+`serverctl` remains a compatible CLI alias. The `ssh-server-manager/` source
+subtree, `ssh_server_manager` Python package, vault/data namespaces, `SSM_*`
+variables and export format are compatibility contracts, not brand strings.
+See `ssh-server-manager/docs/migration.md`; do not globally replace them.
+
+- `ssh-server-manager/` — the product: `hoploom` CLI + loopback FastAPI web
   UI + OS-keychain vault, shipped as a Python package and as an Agent Skill.
 - `website/` — the landing page published by the `pages.yml` workflow.
 - `install.sh` / `install.ps1` — one-line agent-skill installers users pipe
@@ -21,7 +27,7 @@ Work from `ssh-server-manager/`. A project venv already exists at `.venv/`
 
 ```bash
 .venv/bin/python -m pytest tests/        # isolated Python regression suite
-./scripts/serverctl doctor --json        # end-to-end health check
+./scripts/hoploom doctor --json        # end-to-end health check
 ```
 
 For manual testing, isolate state with `SSM_DATA_DIR` and `SSM_RUNTIME_DIR`
@@ -33,7 +39,7 @@ path or signal assumptions without an `os.name` branch).
 ## Source map
 
 - `scripts/ssh_server_manager/cli.py` — argument parsing and `handle()`
-  dispatch; `scripts/serverctl` is the launcher.
+  dispatch; `scripts/hoploom` is the launcher.
 - `scripts/ssh_server_manager/ssh_runner.py` — test/connect/exec over the
   system OpenSSH client; error classification lives here.
 - `scripts/ssh_server_manager/webapp.py` — FastAPI UI, launch-token flow,
@@ -126,7 +132,7 @@ hand-edit it there. Then:
 1. Move `CHANGELOG.md` `## Unreleased` into a dated `## X.Y.Z` section.
 2. Run the full test suite; build with
    `.venv/bin/python -m build --outdir dist .` and smoke-test the wheel in a
-   clean venv (`serverctl --version`).
+   clean venv (`hoploom --version`).
 3. Packaging is rendered after step 5, not from this sdist: `publish.yml`
    builds its own, so only PyPI's file has the hash Homebrew downloads.
 4. Commit, push, tag `vX.Y.Z`, and `gh release create vX.Y.Z` with the wheel

@@ -2,7 +2,7 @@
 """Upgrade a populated, released 0.8.0 installation in a disposable environment.
 
 Download the actual published wheel, seed schema 5 through its own database API,
-then force-install the candidate wheel and verify schema 7 without losing data.
+then replace the old distribution and verify schema 8 without losing data.
 This never opens the OS credential vault, reads user state, or connects to SSH.
 """
 from __future__ import annotations
@@ -64,13 +64,13 @@ def private_json(path: Path, value: dict) -> None:
         json.dump(value, target, ensure_ascii=False)
 
 
-def installed_package(environment: Path, expected_version: str) -> None:
+def installed_package(environment: Path, expected_version: str, distribution: str) -> None:
     import ssh_server_manager
 
     package_file = Path(ssh_server_manager.__file__).resolve()
     require(package_file.is_relative_to(environment.resolve()),
             "Package was imported from outside the disposable virtual environment")
-    require(importlib.metadata.version("ssh-server-manager") == expected_version,
+    require(importlib.metadata.version(distribution) == expected_version,
             "Installed distribution has the wrong version")
     require(ssh_server_manager.__version__ == expected_version,
             "Installed module has the wrong version")
@@ -89,7 +89,8 @@ def worker(mode: str, root: Path, expected_version: str) -> None:
             patch.object(vault.KeyringVault, "__init__", denied), \
             patch("socket.socket.connect", denied), patch("socket.socket.connect_ex", denied), \
             patch("socket.create_connection", denied), patch("subprocess.Popen", denied):
-        installed_package(root / "environment", expected_version)
+        installed_package(root / "environment", expected_version,
+                          "ssh-server-manager" if mode == "seed" else "hoploom")
         from ssh_server_manager.auth import RevealAuth
         from ssh_server_manager.db import Database, SCHEMA_VERSION
 
@@ -242,8 +243,10 @@ def run_upgrade(distribution: Path, expected_version: str) -> None:
         # changing cwd would still import scripts/ssh_server_manager locally.
         print(run(["-I", script, "--worker", "seed", "--root", str(root), "--version", RELEASE],
                   "released-data seeding", timeout=60).strip())
-        # Force replacement also validates development candidates whose package
-        # version still matches 0.8.0. Dependencies were installed above.
+        # Rename migration: the two distributions own the same module paths.
+        # Uninstall the old code before installing Hoploom; user state lives
+        # outside the environment and must survive unchanged.
+        run(["-m", "pip", "uninstall", "-y", "ssh-server-manager"], "legacy distribution removal")
         run(["-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps",
              str(distribution)], "candidate-wheel upgrade")
         run(["-m", "pip", "check"], "candidate dependency consistency")

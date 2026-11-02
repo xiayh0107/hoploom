@@ -1,18 +1,23 @@
 # Command reference
 
+Install the `hoploom` distribution and use `hoploom`. Existing `serverctl`
+commands remain compatible. Never install the unrelated PyPI `serverctl`
+package to repair PATH; locate the installed launcher first. See
+[`../docs/migration.md`](../docs/migration.md) for package upgrades.
+
 ## Setup and UI
 
 ```bash
 ./scripts/bootstrap
-./scripts/serverctl doctor [--json]
-./scripts/serverctl web [--port PORT] [--no-open --url-file PATH]
-./scripts/serverctl web --credential ALIAS [--port PORT] [--no-open --url-file PATH]
-./scripts/serverctl web --status [--json]
-./scripts/serverctl web --stop [--json]
-./scripts/serverctl ui [--port PORT] [--no-open --url-file PATH]
-./scripts/serverctl ui --credential ALIAS [--port PORT] [--no-open --url-file PATH]
-./scripts/serverctl ui --status [--json]
-./scripts/serverctl ui --stop [--json]
+./scripts/hoploom doctor [--json]
+./scripts/hoploom web [--port PORT] [--no-open --url-file PATH]
+./scripts/hoploom web --credential ALIAS [--port PORT] [--no-open --url-file PATH]
+./scripts/hoploom web --status [--json]
+./scripts/hoploom web --stop [--json]
+./scripts/hoploom ui [--port PORT] [--no-open --url-file PATH]
+./scripts/hoploom ui --credential ALIAS [--port PORT] [--no-open --url-file PATH]
+./scripts/hoploom ui --status [--json]
+./scripts/hoploom ui --stop [--json]
 ```
 
 `web` is the browser-shell entry point; `ui` is a compatibility alias with
@@ -50,7 +55,7 @@ instead of tracking pids by hand.
 
 `doctor` is a local health check, not the completion condition for an
 agent-driven installation. After it succeeds, an installing agent should run
-`serverctl server list --json` once, summarize the actual managed hosts, and
+`hoploom server list --json` once, summarize the actual managed hosts, and
 teach the user what they can now ask for in natural language using those real
 aliases. Do not add remote `server test` calls only for onboarding, do not lead
 with database/config paths or raw JSON, and do not require the user to learn
@@ -60,16 +65,16 @@ that a successful `doctor` does not prove a host login has been tested.
 ## Servers
 
 ```bash
-./scripts/serverctl server list [--json]
-./scripts/serverctl server show ALIAS [--json]
-./scripts/serverctl server add ALIAS --hostname HOST --username USER [--port PORT]
+./scripts/hoploom server list [--json]
+./scripts/hoploom server show ALIAS [--json]
+./scripts/hoploom server add ALIAS --hostname HOST --username USER [--port PORT]
   [--credential CREDENTIAL | --password-credential LABEL] [--proxy-jump ALIAS ...] [--notes TEXT]
-./scripts/serverctl server edit ALIAS [field options]
-./scripts/serverctl server remove ALIAS [--yes]
-./scripts/serverctl server import [--config PATH] [--apply] [--overwrite] [--json]
-./scripts/serverctl server test ALIAS [--timeout SECONDS] [--json]
-./scripts/serverctl server diagnose ALIAS [--timeout SECONDS] [--json]
-./scripts/serverctl server note ALIAS (--text TEXT [--append] | --clear) [--json]
+./scripts/hoploom server edit ALIAS [field options]
+./scripts/hoploom server remove ALIAS [--yes]
+./scripts/hoploom server import [--config PATH] [--apply] [--overwrite] [--json]
+./scripts/hoploom server test ALIAS [--timeout SECONDS] [--json]
+./scripts/hoploom server diagnose ALIAS [--timeout SECONDS] [--json]
+./scripts/hoploom server note ALIAS (--text TEXT [--append] | --clear) [--json]
 ```
 
 An import without `--apply` is always a preview. Literal aliases are resolved with `ssh -G`; wildcard-only patterns are reported but not imported.
@@ -86,7 +91,7 @@ confirm with an explicit `server test`.
 `server add --password-credential LABEL` creates a password credential and
 attaches it in one step, using the same hidden local prompt as
 `credential add-password`. It needs a real terminal; without a TTY it fails
-fast and points to `serverctl ui --credential ALIAS` instead.
+fast and points to `hoploom ui --credential ALIAS` instead.
 
 `diagnose` identifies the host's system: its remote check reports `os`,
 `os_id`, `os_version`, `os_family`, and `package_manager` (Linux distros via
@@ -124,14 +129,14 @@ Changing hostname or port clears the old endpoint's observations.
 ## Credentials
 
 ```bash
-./scripts/serverctl credential list [--json]
-./scripts/serverctl credential add-password LABEL
-./scripts/serverctl credential add-key LABEL --key-path PATH [--store-passphrase]
-./scripts/serverctl credential add-agent LABEL
-./scripts/serverctl credential edit LABEL [--label NEW_LABEL] [--key-path PATH]
+./scripts/hoploom credential list [--json]
+./scripts/hoploom credential add-password LABEL
+./scripts/hoploom credential add-key LABEL --key-path PATH [--store-passphrase]
+./scripts/hoploom credential add-agent LABEL
+./scripts/hoploom credential edit LABEL [--label NEW_LABEL] [--key-path PATH]
   [--replace-secret] [--replace-passphrase] [--clear-passphrase]
-./scripts/serverctl credential remove LABEL [--yes]
-./scripts/serverctl credential rotate ALIAS [--new-label LABEL] [--timeout SECONDS] [--json]
+./scripts/hoploom credential remove LABEL [--yes]
+./scripts/hoploom credential rotate ALIAS [--new-label LABEL] [--timeout SECONDS] [--json]
 ```
 
 Secret input uses a local hidden prompt. There is deliberately no CLI command that reveals a saved secret.
@@ -148,7 +153,7 @@ it), the command stops rather than spend more login attempts. A credential no
 other host uses is updated in place; a shared one keeps the old password for the
 other hosts, and ALIAS is bound to a new credential `LABEL (ALIAS)` unless
 `--new-label` names it. Each check is recorded in the audit log as
-`password_rotate`. serverctl never runs `passwd` for you.
+`password_rotate`. hoploom never runs `passwd` for you.
 
 Keys are locally parsed before saving, supporting OpenSSH/PEM RSA, ECDSA and
 Ed25519 identities. Unsupported formats fail explicitly. An encrypted key needs
@@ -176,21 +181,21 @@ credential verification. Progress/results never return secrets. See
 ## Host-bound skills
 
 ```bash
-./scripts/serverctl skill discover [--json]
-./scripts/serverctl skill list [--server ALIAS] [--json]
-./scripts/serverctl skill show NAME|ID [--json]
-./scripts/serverctl skill add PATH [--server ALIAS ...] [--json]
-./scripts/serverctl skill refresh NAME|ID [--path PATH] [--json]
-./scripts/serverctl skill attach NAME|ID SERVER [SERVER ...] [--json]
-./scripts/serverctl skill detach NAME|ID SERVER [SERVER ...] [--json]
-./scripts/serverctl skill remove NAME|ID [--yes] [--json]
-./scripts/serverctl skill resolve ALIAS [ALIAS ...] [--json]
+./scripts/hoploom skill discover [--json]
+./scripts/hoploom skill list [--server ALIAS] [--json]
+./scripts/hoploom skill show NAME|ID [--json]
+./scripts/hoploom skill add PATH [--server ALIAS ...] [--json]
+./scripts/hoploom skill refresh NAME|ID [--path PATH] [--json]
+./scripts/hoploom skill attach NAME|ID SERVER [SERVER ...] [--json]
+./scripts/hoploom skill detach NAME|ID SERVER [SERVER ...] [--json]
+./scripts/hoploom skill remove NAME|ID [--yes] [--json]
+./scripts/hoploom skill resolve ALIAS [ALIAS ...] [--json]
 ```
 
 `discover` scans the standard local skill roots (`~/.agents/skills`,
 `~/.codex/skills`, and `~/.claude/skills`) plus `SSM_SKILLS_DIRS`. It is
 read-only and offline: candidates are not installed, registered, or bound.
-The base `ssh-server-manager` transport skill is omitted and cannot be
+The base `hoploom` transport skill (including its legacy `ssh-server-manager` name) is omitted and cannot be
 registered as host-bound guidance.
 `add` accepts either a skill directory or its `SKILL.md`; each repeated
 `--server` creates a binding in the same transaction. Skill names are
@@ -222,11 +227,11 @@ bindings without calculating readiness.
 ## Saved working directories
 
 ```bash
-./scripts/serverctl path list ALIAS [--json]
-./scripts/serverctl path add ALIAS PATH --label LABEL [--note TEXT] [--json]
-./scripts/serverctl path edit ALIAS LABEL|ID [--label NEW] [--path NEW] [--note TEXT] [--json]
-./scripts/serverctl path remove ALIAS LABEL|ID [--yes] [--json]
-./scripts/serverctl path resolve ALIAS [ALIAS ...] [--json]
+./scripts/hoploom path list ALIAS [--json]
+./scripts/hoploom path add ALIAS PATH --label LABEL [--note TEXT] [--json]
+./scripts/hoploom path edit ALIAS LABEL|ID [--label NEW] [--path NEW] [--note TEXT] [--json]
+./scripts/hoploom path remove ALIAS LABEL|ID [--yes] [--json]
+./scripts/hoploom path resolve ALIAS [ALIAS ...] [--json]
 ```
 
 Call `path resolve` after choosing the target hosts and before browsing or
@@ -243,9 +248,9 @@ wrote, not a directory listing — never present them as proof a path exists.
 ## File transfer
 
 ```bash
-./scripts/serverctl cp SOURCE DEST [--force] [--timeout SECONDS] [--json]
-./scripts/serverctl get ALIAS:REMOTE [LOCAL] [--force] [--timeout SECONDS] [--json]
-./scripts/serverctl put LOCAL ALIAS:REMOTE [--force] [--timeout SECONDS] [--json]
+./scripts/hoploom cp SOURCE DEST [--force] [--timeout SECONDS] [--json]
+./scripts/hoploom get ALIAS:REMOTE [LOCAL] [--force] [--timeout SECONDS] [--json]
+./scripts/hoploom put LOCAL ALIAS:REMOTE [--force] [--timeout SECONDS] [--json]
 ```
 
 Use these instead of `scp`, `rsync`, or `sftp`. They run the same SFTP path as
@@ -273,27 +278,27 @@ retains its existing remote-replacement behavior.
 ## Mounting
 
 ```bash
-./scripts/serverctl mount ALIAS[:REMOTE] [MOUNTPOINT] [--read-only] [--json]
-./scripts/serverctl mount --list [--json]
-./scripts/serverctl unmount ALIAS|MOUNTPOINT [--json]
+./scripts/hoploom mount ALIAS[:REMOTE] [MOUNTPOINT] [--read-only] [--json]
+./scripts/hoploom mount --list [--json]
+./scripts/hoploom unmount ALIAS|MOUNTPOINT [--json]
 ```
 
 Mounting needs a FUSE stack that may not be installed: macFUSE, libfuse, or
-SSHFS-Win with WinFsp. Check the `mount` row of `serverctl doctor` before
+SSHFS-Win with WinFsp. Check the `mount` row of `hoploom doctor` before
 offering it, and report the missing component instead of retrying. Prefer
 `--read-only` unless the user asked to write.
 
 ## Port forwarding
 
 ```bash
-./scripts/serverctl tunnel list [--server ALIAS] [--json]
-./scripts/serverctl tunnel show NAME|ID|ALIAS:NAME [--json]
-./scripts/serverctl tunnel add NAME --server ALIAS (--local SPEC | --remote SPEC | --dynamic SPEC) [--note TEXT] [--json]
-./scripts/serverctl tunnel edit NAME [--name NEW] [--server ALIAS] [--note TEXT] [--spec SPEC] [--kind KIND] [--json]
-./scripts/serverctl tunnel open NAME [--timeout SECONDS] [--foreground] [--json]
-./scripts/serverctl tunnel close NAME [--json]
-./scripts/serverctl tunnel status [--server ALIAS] [--json]
-./scripts/serverctl tunnel remove NAME [--yes] [--json]
+./scripts/hoploom tunnel list [--server ALIAS] [--json]
+./scripts/hoploom tunnel show NAME|ID|ALIAS:NAME [--json]
+./scripts/hoploom tunnel add NAME --server ALIAS (--local SPEC | --remote SPEC | --dynamic SPEC) [--note TEXT] [--json]
+./scripts/hoploom tunnel edit NAME [--name NEW] [--server ALIAS] [--note TEXT] [--spec SPEC] [--kind KIND] [--json]
+./scripts/hoploom tunnel open NAME [--timeout SECONDS] [--foreground] [--json]
+./scripts/hoploom tunnel close NAME [--json]
+./scripts/hoploom tunnel status [--server ALIAS] [--json]
+./scripts/hoploom tunnel remove NAME [--yes] [--json]
 ```
 
 Tunnels are saved as profiles and opened explicitly: `tunnel add` writes
@@ -326,8 +331,8 @@ machine; after a reboot, re-open the ones the user still needs.
 ## Export and import
 
 ```bash
-./scripts/serverctl export [--output PATH] [--json]
-./scripts/serverctl import [FILE|-] [--apply] [--overwrite] [--json]
+./scripts/hoploom export [--output PATH] [--json]
+./scripts/hoploom import [FILE|-] [--apply] [--overwrite] [--json]
 ```
 
 Use these instead of hand-editing the database or copying `manager.db` between
@@ -342,9 +347,9 @@ report that rather than claiming the host is fully restored.
 ## Host locations (local GeoIP)
 
 ```bash
-./scripts/serverctl geo status [--json]
-./scripts/serverctl geo resolve HOST [HOST ...] [--apply] [--overwrite] [--json]
-./scripts/serverctl geo resolve --all [--apply] [--overwrite] [--json]
+./scripts/hoploom geo status [--json]
+./scripts/hoploom geo resolve HOST [HOST ...] [--apply] [--overwrite] [--json]
+./scripts/hoploom geo resolve --all [--apply] [--overwrite] [--json]
 ```
 
 Reads a local range file (`SSM_GEOIP_CSV`) or a local `.mmdb` when `geoip2` is
@@ -357,9 +362,9 @@ about address routing, not a statement about where data is stored.
 ## MCP server
 
 ```bash
-./scripts/serverctl mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]
+./scripts/hoploom mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]
                                 [--http] [--port N] [--token-file PATH]
-./scripts/serverctl mcp tools [--allow-remote] [--allow-exec] [--allow-command PATTERN] [--json]
+./scripts/hoploom mcp tools [--allow-remote] [--allow-exec] [--allow-command PATTERN] [--json]
 ```
 
 Only for clients that cannot read this Skill. Read-only unless `--allow-remote`
@@ -381,9 +386,9 @@ picks a free port. Prefer stdio whenever the client can spawn a process.
 ## Audit log
 
 ```bash
-./scripts/serverctl audit list [--limit N] [--alias ALIAS] [--event KIND] [--since ISO] [--json]
-./scripts/serverctl audit path [--json]
-./scripts/serverctl audit rotate [--force] [--json]
+./scripts/hoploom audit list [--limit N] [--alias ALIAS] [--event KIND] [--since ISO] [--json]
+./scripts/hoploom audit path [--json]
+./scripts/hoploom audit rotate [--force] [--json]
 ```
 
 The log is local, append-only, and mode 600. It records `exec` and
@@ -406,9 +411,9 @@ carry a value; report the event and label instead.
 ## Connections
 
 ```bash
-./scripts/serverctl connect ALIAS [--mosh] [--log | --log-path FILE]
-./scripts/serverctl exec ALIAS [--stdin|--stdin-binary] [--reuse SECONDS] [--shell] [--json] -- COMMAND [ARG ...]
-./scripts/serverctl config render [--json]
+./scripts/hoploom connect ALIAS [--mosh] [--log | --log-path FILE]
+./scripts/hoploom exec ALIAS [--stdin|--stdin-binary] [--reuse SECONDS] [--shell] [--json] -- COMMAND [ARG ...]
+./scripts/hoploom config render [--json]
 ```
 
 `--log` records the session to a mode-600 transcript; only the display stream
@@ -418,7 +423,7 @@ the user's consent — a transcript is session content, not tool metadata.
 `connect` opens an interactive shell and is meant for a human terminal, not
 for agent tool calls (see SKILL.md). `--mosh` uses the mosh client instead,
 which needs mosh-server on the host and a local `mosh` (the `mosh` row of
-`serverctl doctor` reports it); it bootstraps over the same managed ssh config
+`hoploom doctor` reports it); it bootstraps over the same managed ssh config
 and keeps host-key verification, and it fails rather than falling back to ssh. Without a TTY it fails fast with exit
 code `2` and a pointer to `exec`.
 

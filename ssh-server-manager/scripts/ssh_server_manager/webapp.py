@@ -144,7 +144,7 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
     )
     origin = f"http://localhost:{port}"
     state = WebState(database, launch_token=launch_token, origin=origin, launch_url_file=launch_url_file)
-    app = FastAPI(title="SSH Server Manager", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Hoploom", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.state.services = services
     app.state.web = state
@@ -272,7 +272,7 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
         new_identifier = None
         if not session:
             if state.launch_token_used or not token or not secrets.compare_digest(token, state.launch_token):
-                raise HTTPException(status_code=401, detail="use the one-time URL opened by serverctl ui")
+                raise HTTPException(status_code=401, detail="use the one-time URL opened by hoploom ui")
             state.launch_token_used = True
             state.consume_launch_url_file()
             new_identifier, session = state.create_session()
@@ -495,7 +495,7 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
             if result["bytes"] > MAX_WEB_TRANSFER_BYTES:
                 raise FileOperationError(
                     f"file is larger than the {MAX_WEB_TRANSFER_BYTES // (1024 * 1024)} MB "
-                    "web transfer limit; use serverctl get instead", "too_large"
+                    "web transfer limit; use hoploom get instead", "too_large"
                 )
             data = await asyncio.to_thread(target.read_bytes)
         finally:
@@ -533,7 +533,7 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
                     if written > MAX_WEB_TRANSFER_BYTES:
                         raise FileOperationError(
                             f"upload exceeds the {MAX_WEB_TRANSFER_BYTES // (1024 * 1024)} MB "
-                            "web transfer limit; use serverctl put instead", "too_large"
+                            "web transfer limit; use hoploom put instead", "too_large"
                         )
                     handle.write(chunk)
             return await asyncio.to_thread(

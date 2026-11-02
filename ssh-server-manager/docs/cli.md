@@ -1,4 +1,8 @@
-# `serverctl` command reference
+# `hoploom` command reference
+
+The canonical command is `hoploom`, installed by the `hoploom` package.
+`serverctl` remains a silent compatibility entry point; its arguments,
+exit codes and JSON behavior are the same. See [migration](migration.md).
 
 All commands accept `--json` for machine-readable output unless noted.
 Errors exit with code `2` and, under `--json`, print
@@ -7,11 +11,11 @@ Errors exit with code `2` and, under `--json`, print
 ## Global
 
 ```
-serverctl --version
-serverctl doctor [--json]
+hoploom --version
+hoploom doctor [--json]
 ```
 
-`doctor` checks: serverctl version, platform (and whether connection reuse
+`doctor` checks: hoploom version, platform (and whether connection reuse
 is available), database path, ssh / sftp / ssh-keygen presence and client version,
 original and managed config paths, vault backend safety, the Python dependencies
 needed by the UI, and the two pieces of local state the newer pages read —
@@ -23,21 +27,21 @@ are, and the rotation threshold). Exit code is `0` only if every check passes.
 For agent-driven installation, that exit code means the **local installation**
 is healthy; it is not the end of first-run onboarding and does not prove any
 remote host login works. After a successful `doctor`, an installing agent
-should read `serverctl server list --json`, summarize the real inventory, and
+should read `hoploom server list --json`, summarize the real inventory, and
 give the user a few natural-language examples using those aliases. Do not add
 remote tests only for onboarding or turn the handoff into a CLI tutorial.
 
 ## Web UI
 
 ```
-serverctl web [--port PORT] [--no-open --url-file PATH]
-serverctl web --credential ALIAS [--port PORT] [--no-open --url-file PATH]
-serverctl web --status [--json]
-serverctl web --stop [--json]
-serverctl ui [--port PORT] [--no-open --url-file PATH]
-serverctl ui --credential ALIAS [--port PORT] [--no-open --url-file PATH]
-serverctl ui --status [--json]
-serverctl ui --stop [--json]
+hoploom web [--port PORT] [--no-open --url-file PATH]
+hoploom web --credential ALIAS [--port PORT] [--no-open --url-file PATH]
+hoploom web --status [--json]
+hoploom web --stop [--json]
+hoploom ui [--port PORT] [--no-open --url-file PATH]
+hoploom ui --credential ALIAS [--port PORT] [--no-open --url-file PATH]
+hoploom ui --status [--json]
+hoploom ui --stop [--json]
 ```
 
 `web` names the browser shell explicitly. `ui` remains a compatibility alias;
@@ -53,7 +57,7 @@ when two launches start at the same moment.
 - `--no-open` requires `--url-file`; the URL is written to a mode-600 file
   that is deleted once the token is used or the server stops.
 - If an explicit port is busy the command fails fast; retry with `--port 0`.
-- `--status` reports the UI process started by `serverctl web` or `serverctl ui`
+- `--status` reports the UI process started by `hoploom web` or `hoploom ui`
   (pid, port, start time). Exit code `0` while it runs, `1` otherwise; stale
   records are cleaned up automatically.
 - `--stop` terminates that process and deletes its `--url-file` if one was
@@ -63,7 +67,7 @@ when two launches start at the same moment.
   the managed OpenSSH config directory (`~/.ssh` by default). macOS attaches
   Full Disk Access to the application that starts the command — a terminal
   window you typed into, or the agent app (ChatGPT/Codex, Claude, an IDE) when
-  a tool launch ran `serverctl web`. Grant that app under **System Settings ›
+  a tool launch ran `hoploom web`. Grant that app under **System Settings ›
   Privacy & Security › Full Disk Access**, quit and reopen it, then relaunch
   the UI. When the managed config directory alone is unavailable, remote
   commands render the config in the private cache and keep working; when the
@@ -73,18 +77,18 @@ when two launches start at the same moment.
 ## Servers
 
 ```
-serverctl server list [--json]
-serverctl server show ALIAS [--json]
-serverctl server add ALIAS --hostname HOST --username USER [--port PORT]
+hoploom server list [--json]
+hoploom server show ALIAS [--json]
+hoploom server add ALIAS --hostname HOST --username USER [--port PORT]
     [--credential LABEL|ID | --password-credential LABEL] [--proxy-jump ALIAS ...] [--tag TAG ...] [--notes TEXT]
-serverctl server edit ALIAS [--new-alias A] [--hostname H] [--username U]
+hoploom server edit ALIAS [--new-alias A] [--hostname H] [--username U]
     [--port P] [--credential LABEL|'none'] [--proxy-jump ALIAS ...]
     [--tag TAG ... | --clear-tags] [--notes TEXT]
-serverctl server remove ALIAS [--yes]
-serverctl server import [--config PATH] [--apply] [--overwrite] [--json]
-serverctl server test ALIAS [--timeout SECONDS] [--json]
-serverctl server diagnose ALIAS [--timeout SECONDS] [--json]
-serverctl server note ALIAS (--text TEXT [--append] | --clear) [--json]
+hoploom server remove ALIAS [--yes]
+hoploom server import [--config PATH] [--apply] [--overwrite] [--json]
+hoploom server test ALIAS [--timeout SECONDS] [--json]
+hoploom server diagnose ALIAS [--timeout SECONDS] [--json]
+hoploom server note ALIAS (--text TEXT [--append] | --clear) [--json]
 ```
 
 Notes:
@@ -103,7 +107,7 @@ Notes:
 - `add --password-credential LABEL` creates a password credential with the
   hidden local prompt and attaches it in one step. It requires a real
   terminal; without a TTY it fails fast and points to
-  `serverctl ui --credential ALIAS`.
+  `hoploom ui --credential ALIAS`.
 - `import` without `--apply` is always a preview. Conflicting aliases are
   skipped unless `--overwrite`. Overwrite preserves saved credential bindings,
   notes, tags, directories and Skill bindings. Preview and apply return
@@ -157,14 +161,14 @@ Notes:
 ## Credentials
 
 ```
-serverctl credential list [--json]
-serverctl credential add-password LABEL
-serverctl credential add-key LABEL --key-path PATH [--store-passphrase]
-serverctl credential add-agent LABEL
-serverctl credential edit LABEL|ID [--label NEW] [--key-path PATH]
+hoploom credential list [--json]
+hoploom credential add-password LABEL
+hoploom credential add-key LABEL --key-path PATH [--store-passphrase]
+hoploom credential add-agent LABEL
+hoploom credential edit LABEL|ID [--label NEW] [--key-path PATH]
     [--replace-secret] [--replace-passphrase] [--clear-passphrase]
-serverctl credential remove LABEL|ID [--yes]
-serverctl credential rotate ALIAS [--new-label LABEL] [--timeout SECONDS] [--json]
+hoploom credential remove LABEL|ID [--yes]
+hoploom credential rotate ALIAS [--new-label LABEL] [--timeout SECONDS] [--json]
 ```
 
 Notes:
@@ -173,7 +177,7 @@ Notes:
   only the copy saved on this machine and never contacts a server.
   `credential rotate ALIAS` is for a host whose login password is changing. It
   takes the new password at a hidden prompt, waits while you change it on the
-  server with the account's own tools (for example `serverctl connect ALIAS`,
+  server with the account's own tools (for example `hoploom connect ALIAS`,
   then `passwd`), proves a fresh password-only login with it, and only then
   saves it. Press Enter to check, Enter again to re-check after a rejection, or
   Ctrl-C to stop; until a login succeeds the saved password is untouched.
@@ -214,15 +218,15 @@ Notes:
 ## Host-bound skills
 
 ```
-serverctl skill discover [--json]
-serverctl skill list [--server ALIAS] [--json]
-serverctl skill show NAME|ID [--json]
-serverctl skill add PATH [--server ALIAS ...] [--json]
-serverctl skill refresh NAME|ID [--path PATH] [--json]
-serverctl skill attach NAME|ID SERVER [SERVER ...] [--json]
-serverctl skill detach NAME|ID SERVER [SERVER ...] [--json]
-serverctl skill remove NAME|ID [--yes] [--json]
-serverctl skill resolve ALIAS [ALIAS ...] [--json]
+hoploom skill discover [--json]
+hoploom skill list [--server ALIAS] [--json]
+hoploom skill show NAME|ID [--json]
+hoploom skill add PATH [--server ALIAS ...] [--json]
+hoploom skill refresh NAME|ID [--path PATH] [--json]
+hoploom skill attach NAME|ID SERVER [SERVER ...] [--json]
+hoploom skill detach NAME|ID SERVER [SERVER ...] [--json]
+hoploom skill remove NAME|ID [--yes] [--json]
+hoploom skill resolve ALIAS [ALIAS ...] [--json]
 ```
 
 Host-bound skills let environment-specific operating guidance follow the
@@ -233,7 +237,7 @@ Nothing is hard-coded for a particular provider, cluster, or alias.
 - `discover` scans `~/.agents/skills`, `~/.codex/skills`,
   `~/.claude/skills`, and directories in `SSM_SKILLS_DIRS`. It makes no
   network requests and does not install, register, or bind anything. The base
-  `ssh-server-manager` transport skill is deliberately omitted and cannot be
+  `hoploom` transport skill (including its legacy `ssh-server-manager` name) is deliberately omitted and cannot be
   registered as host-bound guidance.
 - `list` shows registered skills; `--server` filters by a bound host. `show`
   accepts a case-insensitive name or skill ID and includes its host bindings.
@@ -296,11 +300,11 @@ readiness.
 ## Saved working directories
 
 ```
-serverctl path list ALIAS [--json]
-serverctl path add ALIAS PATH --label LABEL [--note TEXT] [--json]
-serverctl path edit ALIAS LABEL|ID [--label NEW] [--path NEW] [--note TEXT] [--json]
-serverctl path remove ALIAS LABEL|ID [--yes] [--json]
-serverctl path resolve ALIAS [ALIAS ...] [--json]
+hoploom path list ALIAS [--json]
+hoploom path add ALIAS PATH --label LABEL [--note TEXT] [--json]
+hoploom path edit ALIAS LABEL|ID [--label NEW] [--path NEW] [--note TEXT] [--json]
+hoploom path remove ALIAS LABEL|ID [--yes] [--json]
+hoploom path resolve ALIAS [ALIAS ...] [--json]
 ```
 
 A saved working directory records where you work on a host, so the browser and
@@ -309,7 +313,7 @@ path is a claim about one machine's filesystem, and removing the host removes
 its saved directories.
 
 - Labels are unique per host, case-insensitively, and resolve the same way
-  skill names do — `serverctl path edit web1 APP` finds the entry labelled
+  skill names do — `hoploom path edit web1 APP` finds the entry labelled
   `app`. Paths are unique per host too, so the same directory cannot be saved
   twice under different names.
 - `add` refuses an empty path. Everywhere else an empty remote path means the
@@ -340,9 +344,9 @@ Example `resolve` output:
 ## File transfer
 
 ```
-serverctl cp SOURCE DEST [--force] [--timeout SECONDS] [--json]
-serverctl get ALIAS:REMOTE [LOCAL] [--force] [--timeout SECONDS] [--json]
-serverctl put LOCAL ALIAS:REMOTE [--force] [--timeout SECONDS] [--json]
+hoploom cp SOURCE DEST [--force] [--timeout SECONDS] [--json]
+hoploom get ALIAS:REMOTE [LOCAL] [--force] [--timeout SECONDS] [--json]
+hoploom put LOCAL ALIAS:REMOTE [--force] [--timeout SECONDS] [--json]
 ```
 
 Transfers go through the same OpenSSH SFTP path as everything else, so vault
@@ -373,9 +377,9 @@ symlink target size. See [the web UI](web-ui.md) for the versioned file API.
 ### Recursive transfer
 
 ```
-serverctl put --recursive LOCAL_DIR ALIAS:REMOTE_DIR
-serverctl get --recursive ALIAS:REMOTE_DIR [LOCAL_DIR]
-serverctl cp --recursive ...
+hoploom put --recursive LOCAL_DIR ALIAS:REMOTE_DIR
+hoploom get --recursive ALIAS:REMOTE_DIR [LOCAL_DIR]
+hoploom cp --recursive ...
 ```
 
 `--recursive` copies a whole tree over the same SFTP path, credentials, and
@@ -387,7 +391,7 @@ quoting as a single file, and creates any missing destination directory.
   never meant to. Resolve the target and copy it explicitly if that is what you
   want.
 - One call is capped at 4000 entries. Past that the batch stops being the right
-  tool: archive remotely (`serverctl exec ALIAS -- tar czf /tmp/tree.tgz DIR`),
+  tool: archive remotely (`hoploom exec ALIAS -- tar czf /tmp/tree.tgz DIR`),
   transfer the archive, and unpack it here.
 - Download refuses anything that is neither a file nor a directory (a socket, a
   device), and upload refuses a symlinked root directory.
@@ -397,9 +401,9 @@ quoting as a single file, and creates any missing destination directory.
 ## Mounting
 
 ```
-serverctl mount ALIAS[:REMOTE] [MOUNTPOINT] [--read-only] [--json]
-serverctl mount --list [--json]
-serverctl unmount ALIAS|MOUNTPOINT [--json]
+hoploom mount ALIAS[:REMOTE] [MOUNTPOINT] [--read-only] [--json]
+hoploom mount --list [--json]
+hoploom unmount ALIAS|MOUNTPOINT [--json]
 ```
 
 Mounting exposes a remote directory to Finder, Explorer, and your editor
@@ -408,7 +412,7 @@ every other connection.
 
 - This is the only feature that needs software we cannot install for you:
   macFUSE on macOS, libfuse and `fusermount` on Linux, SSHFS-Win plus WinFsp on
-  Windows. Run `serverctl doctor` first — the `mount` row names the missing
+  Windows. Run `hoploom doctor` first — the `mount` row names the missing
   piece rather than failing at mount time.
 - The default mount point is `~/mnt/ALIAS`. It is created if missing and
   refused if it already has contents.
@@ -420,16 +424,16 @@ every other connection.
 ## Port forwarding
 
 ```
-serverctl tunnel list [--server ALIAS] [--json]
-serverctl tunnel show NAME|ID|ALIAS:NAME [--json]
-serverctl tunnel add NAME --server ALIAS (--local SPEC | --remote SPEC | --dynamic SPEC)
+hoploom tunnel list [--server ALIAS] [--json]
+hoploom tunnel show NAME|ID|ALIAS:NAME [--json]
+hoploom tunnel add NAME --server ALIAS (--local SPEC | --remote SPEC | --dynamic SPEC)
     [--note TEXT] [--json]
-serverctl tunnel edit NAME [--name NEW] [--server ALIAS] [--note TEXT]
+hoploom tunnel edit NAME [--name NEW] [--server ALIAS] [--note TEXT]
     [--spec SPEC] [--kind KIND] [--json]
-serverctl tunnel open NAME [--timeout SECONDS] [--foreground] [--json]
-serverctl tunnel close NAME [--json]
-serverctl tunnel status [--server ALIAS] [--json]
-serverctl tunnel remove NAME [--yes] [--json]
+hoploom tunnel open NAME [--timeout SECONDS] [--foreground] [--json]
+hoploom tunnel close NAME [--json]
+hoploom tunnel status [--server ALIAS] [--json]
+hoploom tunnel remove NAME [--yes] [--json]
 ```
 
 A tunnel is a saved forwarding profile plus, when you ask for it, one detached
@@ -438,10 +442,10 @@ steps: `add` records the intent without contacting the host, `open` starts it,
 `close` stops it.
 
 ```
-serverctl tunnel add db1-local --server db1 --local 15432:localhost:5432
-serverctl tunnel open db1-local        # opened db1-local (...) for db1 (pid 41902)
-serverctl tunnel status                # db1-local  db1  local  127.0.0.1:15432:localhost:5432  running pid=41902
-serverctl tunnel close db1-local
+hoploom tunnel add db1-local --server db1 --local 15432:localhost:5432
+hoploom tunnel open db1-local        # opened db1-local (...) for db1 (pid 41902)
+hoploom tunnel status                # db1-local  db1  local  127.0.0.1:15432:localhost:5432  running pid=41902
+hoploom tunnel close db1-local
 ```
 
 - `SPEC` is OpenSSH's own spelling, and the host half resolves on the remote
@@ -467,7 +471,7 @@ serverctl tunnel close db1-local
   are pruned when the process is gone, so tunnels never look open after a
   reboot or in a database copied from another machine.
 - Host-key verification is enforced (`StrictHostKeyChecking=yes`) and never
-  relaxed for a tunnel. Authenticate with `serverctl server test ALIAS` first
+  relaxed for a tunnel. Authenticate with `hoploom server test ALIAS` first
   when a host is new, because a background forward has no terminal in which to
   confirm a key.
 - Removing a host stops its tunnels before deleting the profiles.
@@ -475,8 +479,8 @@ serverctl tunnel close db1-local
 ## Export and import
 
 ```
-serverctl export [--output PATH] [--json]
-serverctl import [FILE|-] [--apply] [--overwrite] [--json]
+hoploom export [--output PATH] [--json]
+hoploom import [FILE|-] [--apply] [--overwrite] [--json]
 ```
 
 `export` writes the inventory as a deterministic JSON document: hosts sorted by
@@ -484,10 +488,10 @@ alias, a fixed key order, no timestamps. Exporting the same inventory twice
 produces identical bytes, so a commit in git shows what actually changed.
 
 ```
-serverctl export --output inventory.json
-serverctl import inventory.json              # preview: what would change
-serverctl import inventory.json --apply      # write it
-serverctl export | ssh other-host serverctl import --apply   # or pipe it
+hoploom export --output inventory.json
+hoploom import inventory.json              # preview: what would change
+hoploom import inventory.json --apply      # write it
+hoploom export | ssh other-host hoploom import --apply   # or pipe it
 ```
 
 What travels: alias, hostname, port, username, `ProxyJump` hops, tags, notes,
@@ -520,9 +524,9 @@ Import semantics:
 ## Audit log
 
 ```
-serverctl audit list [--limit N] [--alias ALIAS] [--event KIND] [--since TIMESTAMP] [--json]
-serverctl audit path [--json]
-serverctl audit rotate [--force] [--json]
+hoploom audit list [--limit N] [--alias ALIAS] [--event KIND] [--since TIMESTAMP] [--json]
+hoploom audit path [--json]
+hoploom audit rotate [--force] [--json]
 ```
 
 Privileged actions are recorded locally, whether the command came from your
@@ -535,7 +539,7 @@ shell or from an agent:
 | `connect` | an interactive session was opened |
 | `tunnel_open` / `tunnel_close` | a saved forward was started or stopped |
 
-- `serverctl audit list` prints the newest events first;
+- `hoploom audit list` prints the newest events first;
   `--alias`, `--event`, `--since`, and `--limit` narrow it. `--json` returns
   `{"ok", "path", "count", "events"}` for scripts and agents.
 - The log lives beside the database as `audit.log` (mode 600, one JSON object
@@ -554,8 +558,8 @@ shell or from an agent:
 ## Connect and execute
 
 ```
-serverctl connect ALIAS [--timeout SECONDS] [--mosh] [--log] [--log-path FILE]
-serverctl exec ALIAS [--shell] [--stdin | --stdin-binary]
+hoploom connect ALIAS [--timeout SECONDS] [--mosh] [--log] [--log-path FILE]
+hoploom exec ALIAS [--shell] [--stdin | --stdin-binary]
     [--timeout SECONDS] [--reuse SECONDS] [--json] -- COMMAND [ARG ...]
 ```
 
@@ -582,7 +586,7 @@ serverctl exec ALIAS [--shell] [--stdin | --stdin-binary]
 
 ### Session transcripts
 
-`serverctl connect ALIAS --log` records the session to a mode-600 file under
+`hoploom connect ALIAS --log` records the session to a mode-600 file under
 `sessions/` in the data directory, named `<timestamp>-<alias>.log`;
 `--log-path FILE` chooses the file. A warning naming the destination is printed
 before the session starts.
@@ -600,11 +604,11 @@ before the session starts.
 
 ### Mosh sessions
 
-`serverctl connect ALIAS --mosh` runs a mosh session instead of plain ssh, for
+`hoploom connect ALIAS --mosh` runs a mosh session instead of plain ssh, for
 roaming laptops and high-latency or lossy links where a TCP session would stall.
 
 - It needs the `mosh` client on this machine and `mosh-server` on the host.
-  `serverctl doctor` has a `mosh` row that names what is missing; the command
+  `hoploom doctor` has a `mosh` row that names what is missing; the command
   fails rather than quietly falling back to ssh, because silently changing the
   transport is not what "connect with mosh" asked for.
 - Mosh is not a second authentication path. It bootstraps through the managed
@@ -617,9 +621,9 @@ roaming laptops and high-latency or lossy links where a TCP session would stall.
 ## Host locations (local GeoIP)
 
 ```
-serverctl geo status [--json]
-serverctl geo resolve HOST [HOST ...] [--apply] [--overwrite] [--json]
-serverctl geo resolve --all [--apply] [--overwrite] [--json]
+hoploom geo status [--json]
+hoploom geo resolve HOST [HOST ...] [--apply] [--overwrite] [--json]
+hoploom geo resolve --all [--apply] [--overwrite] [--json]
 ```
 
 `geo resolve` turns a host's address into a country (and city when the data has
@@ -636,7 +640,7 @@ Point it at one of:
   package (`pip install geoip2`). Nothing is downloaded; you supply the file.
 
 By default the path is `<data dir>/geoip.csv` or `<data dir>/geoip.mmdb`, so
-dropping a file there is enough. `serverctl geo status` and the `doctor` `geoip`
+dropping a file there is enough. `hoploom geo status` and the `doctor` `geoip`
 row report which backend is configured and what is missing.
 
 Behaviour worth knowing:
@@ -653,9 +657,9 @@ Behaviour worth knowing:
 ## MCP server
 
 ```
-serverctl mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]
+hoploom mcp serve [--allow-remote] [--allow-exec] [--allow-command PATTERN]
                     [--http] [--port N] [--token-file PATH]
-serverctl mcp tools [--allow-remote] [--allow-exec] [--allow-command PATTERN] [--json]
+hoploom mcp tools [--allow-remote] [--allow-exec] [--allow-command PATTERN] [--json]
 ```
 
 A thin Model Context Protocol server over the same core, for clients that cannot
@@ -682,16 +686,16 @@ line, so nothing but protocol messages may go to stdout.
   would enable a tool that can never succeed.
 - Acting calls are audited under actor `mcp`.
 - An unknown host key still cannot be confirmed through MCP; verify the host
-  once in a terminal with `serverctl server test ALIAS`.
+  once in a terminal with `hoploom server test ALIAS`.
 
 ### MCP over HTTP
 
-`serverctl mcp serve --http` adds a loopback HTTP endpoint for clients that
+`hoploom mcp serve --http` adds a loopback HTTP endpoint for clients that
 cannot spawn a process. It is the same server, the same policy and the same audit
 trail as the stdio binding — only the transport differs.
 
 ```
-serverctl mcp serve --http --token-file ~/.cache/mcp-token \
+hoploom mcp serve --http --token-file ~/.cache/mcp-token \
   --allow-exec --allow-command 'uptime'
 # MCP endpoint: http://127.0.0.1:PORT/mcp
 ```
@@ -718,7 +722,7 @@ can spawn a process.
 ## Config
 
 ```
-serverctl config render [--json]
+hoploom config render [--json]
 ```
 
 Re-renders the managed OpenSSH config (also done automatically after every

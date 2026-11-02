@@ -21,7 +21,7 @@ const credential = {id: 'credential-key', label: 'Deployment key', kind: 'key', 
   key_metadata: {path: '/fixture/keys/deploy_ed25519', status: 'valid', format: 'openssh', encrypted: true,
     algorithm: 'Ed25519', fingerprint: 'SHA256:browser-fixture', bits: 256,
     permissions: {method: 'posix_mode', assessment: 'secure', mode: '0600'}, observed_at: observed}};
-const runtime = {api_version: '1', version: '0.9.0', ui: 'modern', shell: 'web', csrf: 'browser-fixture-csrf', server_time: observed,
+const runtime = {api_version: '1', version: '0.11.0', ui: 'modern', shell: 'web', csrf: 'browser-fixture-csrf', server_time: new Date().toISOString(),
   auth: {master_password_enrolled: false, passkeys: 0, webauthn_available: false},
   session: {expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()}, vault: {name: 'Fixture vault', status: 'ready'},
   capabilities: {bulk_checks: true, credentials: true, file_conflicts: true, files: true, host_routes: true, hosts: true, skills: true,

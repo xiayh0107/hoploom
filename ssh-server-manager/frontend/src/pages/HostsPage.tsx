@@ -71,7 +71,7 @@ export default function HostsPage({hosts, credentials, runtime, onRefresh, hash,
     } finally {setBulkAction(null);}
   });
   const diagnose = (host: Host) => action(async () => {const result = await api<Diagnosis>(`/hosts/${segment(host.id)}/diagnose`, json('POST', {timeout: 8})); setDiagnosis(result); await onRefresh();});
-  const copy = (host: Host) => {if (details) return action(async () => {await navigator.clipboard.writeText(`serverctl connect ${host.alias}`); setNotice(`Copied connection command for ${host.alias}`);});};
+  const copy = (host: Host) => {if (details) return action(async () => {await navigator.clipboard.writeText(`hoploom connect ${host.alias}`); setNotice(`Copied connection command for ${host.alias}`);});};
   const files = (host: Host) => {location.hash = `#/files/${segment(host.id)}`;};
   const toggle = (id: string) => setSelection(previous => {const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next;});
   const edit = (host: Host, copy = false) => {setDuplicate(copy); setEditing(host);};
@@ -406,7 +406,7 @@ function HostDetails({host, hosts, onClose, onRefresh, onEdit, onCheck, onObserv
           <dt><Icon name="lock" size={14}/>Host key</dt><dd>{host.host_key?.state || 'unknown'}{host.host_key?.fingerprint && <small className="mono">{host.host_key.fingerprint}</small>}</dd>
           <dt><Icon name="clock" size={14}/>Last success</dt><dd>{host.last_success_at ? relativeTime(host.last_success_at) : <span className="muted">Never</span>}</dd>
         </dl>
-        <div className="terminal-bar"><code>$ serverctl connect {host.alias}</code><Button variant="ghost" aria-label="Copy connect command" onClick={onCopy}><Icon name="copy" size={14}/></Button></div>
+        <div className="terminal-bar"><code>$ hoploom connect {host.alias}</code><Button variant="ghost" aria-label="Copy connect command" onClick={onCopy}><Icon name="copy" size={14}/></Button></div>
       </section>
       <section className="drawer-card"><div className="section-head"><h3 className="section-heading"><Icon name="cpu" size={14}/>System</h3><span className="section-note">{host.facts?.observed_at ? `Last observed · ${relativeTime(host.facts.observed_at)} · ` : 'Not observed yet · '}{host.facts && <><button className="link-button" onClick={onObserve} disabled={busy}>Collect host info</button> · </>}<button className="link-button" onClick={onDiagnose} disabled={busy}>Diagnose again</button></span></div>
         {host.facts ? <div className="system-list">{systemRows.map(row => <div className={`system-row${row.meter ? ' has-meter' : ''}`} key={row.label}><div className="system-row-main"><span className="system-label"><Icon name={row.icon} size={14}/>{row.label}</span><span className={`system-value${row.mono ? ' mono' : ''}`}>{row.value}</span></div>{row.meter && <><span className="segmented-meter" aria-hidden="true"><span style={{width: `${row.meter.percent}%`}}/></span><span className="system-meter-note">{row.meter.note}</span></>}</div>)}</div> : <div className="system-empty"><p>Collect host info to save OS, kernel, CPU, memory, disk and uptime. Connection checks do not collect system info.</p><Button onClick={onObserve} disabled={busy}>Collect host info</Button></div>}

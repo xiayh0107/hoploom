@@ -1,6 +1,6 @@
 # Security model
 
-This page describes what SSH Server Manager protects, what it deliberately
+This page describes what Hoploom protects, what it deliberately
 does not, and the invariants the code enforces. The developer-facing rules
 live in [references/security.md](../references/security.md).
 
@@ -51,7 +51,7 @@ Downloading and uploading are separate, explicit actions with their own rules:
   CSRF token. Download is deliberately not a `GET`: a link cannot carry the CSRF
   header, and a request that moves bytes off one of your hosts is exactly what a
   hostile page would try to forge.
-- Both are capped at 100 MB. Larger files belong on `serverctl get` / `put`,
+- Both are capped at 100 MB. Larger files belong on `hoploom get` / `put`,
   which stream straight through sftp without staging.
 - Bytes are staged in a per-transfer temporary directory inside the private
   runtime directory (`0700`, owner-checked) and removed when the request ends,
@@ -65,7 +65,7 @@ as a hard error — the tool refuses to run rather than degrade to plaintext.
 
 ## How SSH authentication works without exposing secrets
 
-`serverctl` never types your password. It sets `SSH_ASKPASS` to a small
+`hoploom` never types your password. It sets `SSH_ASKPASS` to a small
 helper and passes it only *credential identifiers* plus prompt-matching
 metadata. When OpenSSH asks for a password or passphrase, the helper:
 
@@ -145,7 +145,7 @@ permissions.
 
 1. **Loopback only** — binds `127.0.0.1`; Host and Origin headers are
    validated to stop DNS-rebinding.
-2. **One-time launch token** — the URL `serverctl ui` opens carries a
+2. **One-time launch token** — the URL `hoploom ui` opens carries a
    single-use token; it is exchanged for an `HttpOnly`, `SameSite=Strict`
    session cookie and cannot be replayed.
 3. **CSRF token on every mutation**, checked with constant-time comparison.
@@ -164,7 +164,7 @@ normal operation.
 
 `StrictHostKeyChecking` is never weakened. Automated checks and transfers
 reject unknown or changed keys with `host-key-untrusted`. Under OpenSSH's
-normal `ask` policy, interactive `serverctl connect ALIAS` shows a first-use
+normal `ask` policy, interactive `hoploom connect ALIAS` shows a first-use
 fingerprint in the human's controlling terminal even when AskPass supplies
 a saved password or passphrase. Verify it out-of-band before explicitly
 confirming; missing terminal input fails closed. Stricter configured policies

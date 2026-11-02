@@ -21,7 +21,7 @@ from .paths import cache_dir
 from .ssh_config import SSHConfigError
 
 # The permission belongs to the application that runs the command, not to
-# serverctl or to the shell: macOS attaches it to the GUI app (or the agent
+# hoploom or to the shell: macOS attaches it to the GUI app (or the agent
 # host, e.g. ChatGPT/Codex, Claude, an IDE) that ultimately starts the process.
 UI_WRITE_NOTE = (
     "this app is not allowed to write there; run it from an app with Full Disk "

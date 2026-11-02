@@ -182,9 +182,9 @@ def resolve_transfer(source: str, destination: str) -> tuple[str, str, str, str]
     )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="serverctl", description="Manage SSH hosts and secure credentials")
-    parser.add_argument("--version", action="version", version=f"serverctl {__version__}")
+def build_parser(prog: str = "hoploom") -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog, description="Hoploom: local SSH access for humans and agents")
+    parser.add_argument("--version", action="version", version=f"{prog} {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
 
     doctor = commands.add_parser("doctor", help="diagnose local dependencies and storage")
@@ -224,7 +224,7 @@ def build_parser() -> argparse.ArgumentParser:
     server_add = server_commands.add_parser(
         "add",
         epilog="add only creates and refuses an existing alias; "
-        "to change a server use 'serverctl server edit ALIAS'.",
+        "to change a server use 'hoploom server edit ALIAS'.",
     )
     server_add.add_argument("alias")
     server_add.add_argument("--hostname", required=True)
@@ -377,7 +377,7 @@ def build_parser() -> argparse.ArgumentParser:
     mount = commands.add_parser("mount", help="mount a host's directory locally with sshfs")
     # --list rather than a `mount list` subcommand: argparse cannot offer both a
     # subcommand and an optional positional on the same parser, and
-    # `serverctl mount web1:/srv/app` is the form worth keeping.
+    # `hoploom mount web1:/srv/app` is the form worth keeping.
     mount.add_argument("--list", action="store_true", help="list active sshfs mounts and exit")
     mount.add_argument(
         "server", nargs="?", metavar="ALIAS[:REMOTE]", help="host to mount, optionally with a path"
@@ -385,7 +385,7 @@ def build_parser() -> argparse.ArgumentParser:
     mount.add_argument("mountpoint", nargs="?", default=None, help="local directory (default ~/mnt/ALIAS)")
     mount.add_argument("--read-only", action="store_true", help="mount without write access")
     add_json_option(mount)
-    unmount = commands.add_parser("unmount", help="unmount a directory mounted by serverctl")
+    unmount = commands.add_parser("unmount", help="unmount a directory mounted by hoploom")
     unmount.add_argument("target", metavar="ALIAS|MOUNTPOINT")
     add_json_option(unmount)
 
@@ -440,7 +440,7 @@ def build_parser() -> argparse.ArgumentParser:
         "open",
         help="start a saved forward in the background",
         epilog="background opens are detached from this terminal; "
-        "use 'serverctl tunnel close NAME' or --foreground to stop it.",
+        "use 'hoploom tunnel close NAME' or --foreground to stop it.",
     )
     tunnel_open.add_argument("tunnel", help="profile name, id, or ALIAS:NAME")
     tunnel_open.add_argument("--timeout", type=int, default=20, help="connection timeout in seconds")
@@ -479,7 +479,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     import_parser = commands.add_parser(
         "import",
-        help="read a serverctl export file into this machine's inventory",
+        help="read a hoploom export file into this machine's inventory",
         epilog="prints what would change unless --apply is given; existing hosts are "
         "left alone unless --overwrite, and saved directories and tunnels are merged "
         "rather than replaced.",
@@ -604,7 +604,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_option(credential_list)
     credential_edit_hint = (
         "add only creates and refuses an existing label; "
-        "to update a credential use 'serverctl credential edit LABEL' "
+        "to update a credential use 'hoploom credential edit LABEL' "
         "(--replace-secret for a new password)."
     )
     add_password = credential_commands.add_parser("add-password", epilog=credential_edit_hint)
@@ -622,7 +622,7 @@ def build_parser() -> argparse.ArgumentParser:
         "edit",
         epilog="--replace-secret changes only the password saved on this machine; it does "
         "not change it on any server. After changing a host's login password, use "
-        "'serverctl credential rotate ALIAS', which verifies the new password first.",
+        "'hoploom credential rotate ALIAS', which verifies the new password first.",
     )
     edit_credential.add_argument("credential")
     edit_credential.add_argument("--label")
@@ -642,16 +642,16 @@ def build_parser() -> argparse.ArgumentParser:
     rotate_credential = credential_commands.add_parser(
         "rotate",
         help="save a host's new login password once the host accepts it (terminal only)",
-        description="Change a host's login password safely. serverctl never changes the "
+        description="Change a host's login password safely. hoploom never changes the "
         "password on the server: you do that with the account's own tools (for example "
-        "'passwd' inside 'serverctl connect ALIAS'). This command takes the new password "
+        "'passwd' inside 'hoploom connect ALIAS'). This command takes the new password "
         "through a hidden prompt, waits while you change it, proves a fresh password-only "
         "login with it, and only then saves it. Until that login succeeds, the saved "
         "password is left as it was.",
         epilog="If no other host uses the credential it is updated in place. If others do, "
         "they keep the old password and ALIAS is moved to a new credential (named "
         "'LABEL (ALIAS)' unless --new-label is given). To change only the saved copy "
-        "without touching or checking the server, use 'serverctl credential edit LABEL "
+        "without touching or checking the server, use 'hoploom credential edit LABEL "
         "--replace-secret'.",
     )
     rotate_credential.add_argument("host", metavar="ALIAS", help="the host whose login password is changing")
@@ -730,7 +730,7 @@ def rotation_failure(result: dict[str, Any]) -> tuple[str, bool]:
     if result["rejected_by"] not in (None, "target"):
         jump = result["rejected_by"]
         return (f"The jump host {jump} rejected its own saved credential, so {alias} was never asked. "
-                f"Nothing was saved. Check it with 'serverctl server test {jump}'; if it shares this "
+                f"Nothing was saved. Check it with 'hoploom server test {jump}'; if it shares this "
                 f"account and its password changed too, rotate {jump} first."), False
     accepted = result["saved_password_accepted"]
     if accepted is True:
@@ -759,7 +759,7 @@ def rotate_password(service: CredentialApplicationService, args: argparse.Namesp
         raise ValidationError(
             "credential rotate asks for the new password at a hidden prompt and waits while "
             "you change it on the server, so it needs a terminal (TTY); run "
-            f"'serverctl credential rotate {plan['host_alias']}' in your own terminal"
+            f"'hoploom credential rotate {plan['host_alias']}' in your own terminal"
         )
     alias, label = plan["host_alias"], plan["credential_label"]
     first = getpass.getpass(f"New login password for {alias}: ")
@@ -776,7 +776,7 @@ def rotate_password(service: CredentialApplicationService, args: argparse.Namesp
     print(
         f"Nothing is saved yet. {target}\n"
         f"Now change the login password on {alias} with its own tools; for example, in another "
-        f"terminal run 'serverctl connect {alias}' and then 'passwd'.\n"
+        f"terminal run 'hoploom connect {alias}' and then 'passwd'.\n"
         "Press Enter when the server should accept the new password, or Ctrl-C to stop "
         "without saving.",
         file=sys.stderr,
@@ -821,7 +821,7 @@ def require_new_credential_label(service: CredentialApplicationService, label: s
         return
     raise ConflictError(
         f"credential label already exists: {label}; "
-        f"to update it use 'serverctl credential edit {label}' "
+        f"to update it use 'hoploom credential edit {label}' "
         "(--replace-secret for a new password)"
     )
 
@@ -870,21 +870,27 @@ def skill_link_status(dirs: Sequence[Path] | None = None) -> dict[str, Any]:
         candidates = list(dirs)
     links: list[dict[str, str]] = []
     stale: list[dict[str, str]] = []
+    seen: set[Path] = set()
     for directory in candidates:
-        marker = directory / "ssh-server-manager" / "scripts" / "ssh_server_manager" / "__init__.py"
-        try:
-            match = re.search(r'__version__\s*=\s*"([^"]+)"', marker.read_text(encoding="utf-8"))
-        except OSError:
-            continue
-        entry = {"path": str(directory / "ssh-server-manager"), "version": match.group(1) if match else "unknown"}
-        links.append(entry)
-        if entry["version"] != __version__:
-            stale.append(entry)
+        for name in ("hoploom", "ssh-server-manager"):
+            marker = directory / name / "scripts" / "ssh_server_manager" / "__init__.py"
+            try:
+                resolved = marker.resolve()
+                if resolved in seen:
+                    continue
+                match = re.search(r'__version__\s*=\s*"([^"]+)"', marker.read_text(encoding="utf-8"))
+            except (OSError, RuntimeError):
+                continue
+            seen.add(resolved)
+            entry = {"path": str(directory / name), "version": match.group(1) if match else "unknown"}
+            links.append(entry)
+            if entry["version"] != __version__:
+                stale.append(entry)
     status: dict[str, Any] = {"ok": True, "linked": len(links)}
     if stale:
         status["stale"] = stale
         status["message"] = (
-            f"skill copy at {stale[0]['path']} is v{stale[0]['version']} but serverctl is "
+            f"skill copy at {stale[0]['path']} is v{stale[0]['version']} but hoploom is "
             f"v{__version__}; re-run install.sh to update it, then restart the agent session"
         )
     return status
@@ -936,7 +942,7 @@ def _audit_health() -> dict[str, Any]:
 def run_doctor(database: Database) -> dict[str, Any]:
     ssh_path = shutil.which("ssh")
     checks: dict[str, Any] = {
-        "version": {"ok": True, "serverctl": __version__},
+        "version": {"ok": True, "hoploom": __version__, "serverctl": __version__},
         "platform": {
             "ok": True,
             "system": platform.system(),
@@ -1016,7 +1022,7 @@ def handle(args: argparse.Namespace) -> int:
                     raise VaultError(
                         "--password-credential needs a local terminal for the hidden password "
                         "prompt; run this command in your own terminal, or add the server "
-                        "without it and enter the password via 'serverctl ui --credential ALIAS'"
+                        "without it and enter the password via 'hoploom ui --credential ALIAS'"
                     )
                 require_new_credential_label(services.credentials, args.password_credential)
                 first = getpass.getpass("Password: ")
@@ -1040,7 +1046,7 @@ def handle(args: argparse.Namespace) -> int:
                 )
             except ConflictError as exc:
                 raise ConflictError(
-                    f"{exc}; to update it use 'serverctl server edit {args.alias}'"
+                    f"{exc}; to update it use 'hoploom server edit {args.alias}'"
                 ) from exc
             emit(result, as_json=args.json)
         elif args.server_command == "edit":
@@ -1546,7 +1552,7 @@ def handle(args: argparse.Namespace) -> int:
             raise SSHError(
                 "connect opens an interactive shell and requires a terminal (TTY); "
                 "run this command directly in your own terminal, or use "
-                "'serverctl exec ALIAS -- COMMAND' to run commands non-interactively"
+                "'hoploom exec ALIAS -- COMMAND' to run commands non-interactively"
             )
         if args.mosh:
             from . import mosh
@@ -1597,8 +1603,13 @@ def handle(args: argparse.Namespace) -> int:
     return 2
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
+def legacy_main(argv: Sequence[str] | None = None) -> int:
+    """Keep the old entry point silent and preserve its help/version spelling."""
+    return main(argv, prog="serverctl")
+
+
+def main(argv: Sequence[str] | None = None, *, prog: str = "hoploom") -> int:
+    parser = build_parser(prog)
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
     remote_command: list[str] = []
     if raw_argv and raw_argv[0] == "exec" and "--" in raw_argv:

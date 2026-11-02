@@ -59,7 +59,7 @@ def test_initialize_reports_the_server_and_a_version_the_client_asked_for(databa
     server = mcp_server.McpServer(database)
     response = call(server, "initialize", {"protocolVersion": "2024-11-05"})
     assert response["result"]["protocolVersion"] == "2024-11-05"
-    assert response["result"]["serverInfo"]["name"] == "ssh-server-manager"
+    assert response["result"]["serverInfo"]["name"] == "hoploom"
     assert response["result"]["capabilities"]["tools"] == {"listChanged": False}
     # The instructions say plainly what this server will not do.
     assert "no way to reveal a stored secret" in response["result"]["instructions"].lower()

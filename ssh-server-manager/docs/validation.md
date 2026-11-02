@@ -117,8 +117,8 @@ Build both distributions with the candidate version already set consistently:
 ```sh
 .venv/bin/python -m pip install build
 .venv/bin/python -m build --outdir dist .
-.venv/bin/python scripts/packaging-smoke.py dist/ssh_server_manager-VERSION-py3-none-any.whl --version VERSION
-.venv/bin/python scripts/packaging-smoke.py dist/ssh_server_manager-VERSION.tar.gz --version VERSION
+.venv/bin/python scripts/packaging-smoke.py dist/hoploom-VERSION-py3-none-any.whl --version VERSION
+.venv/bin/python scripts/packaging-smoke.py dist/hoploom-VERSION.tar.gz --version VERSION
 ```
 
 Replace `VERSION` in filenames and arguments with the built package's version.
@@ -142,7 +142,7 @@ open the OS credential vault.
 Run the migration smoke against the exact candidate wheel intended for release:
 
 ```sh
-.venv/bin/python scripts/upgrade-smoke.py dist/ssh_server_manager-VERSION-py3-none-any.whl --version VERSION
+.venv/bin/python scripts/upgrade-smoke.py dist/hoploom-VERSION-py3-none-any.whl --version VERSION
 ```
 
 This check needs package-index access. It downloads the actual published 0.8.0
@@ -156,11 +156,12 @@ package to create schema 5 with:
 - An enrolled Argon2 master-password hash, a fixture WebAuthn user/credential
   record, and arbitrary application settings.
 
-It force-reinstalls the candidate wheel selected for the 0.9.0 release. Worker
+It uninstalls the old distribution before installing the candidate Hoploom
+wheel, then checks dependency consistency. Worker
 interpreters run in isolated mode and assert that the package comes from the
 temporary virtual environment. Every original column, row, ID, association and
 timestamp is compared exactly. The check also
-requires schema 7, correct last-success migration, nullable observation/key
+requires schema 8, correct last-success migration, nullable observation/key
 metadata defaults, initial credential revisions, empty new history tables,
 working master-password verification, SQLite integrity, and unchanged data
 after repeated startup.
@@ -181,7 +182,7 @@ commit being released.
 | Job | Environment | Checks |
 |---|---|---|
 | `cross-platform` | macOS, Ubuntu Linux, Windows; Python 3.10 and 3.13 | Backend tests, API/type freshness, TypeScript/component checks, reproducible UI build, wheel and sdist installation |
-| Upgrade smoke | macOS, Ubuntu Linux, Windows within `cross-platform`; Python 3.13 | Published 0.8.0 schema 5 to candidate schema 7 |
+| Upgrade smoke | macOS, Ubuntu Linux, Windows within `cross-platform`; Python 3.13 | Published 0.8.0 schema 5 to candidate schema 8, including distribution rename |
 | `browser-topology` | Ubuntu Linux; Python 3.13 | Six-view Chromium smoke and isolated real SSH/SFTP browser topology |
 
 Browser tests use the normal one-use launch-file flow, with no authentication

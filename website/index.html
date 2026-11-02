@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SSH Server Manager — Shared SSH Workspace for You and Your Agent</title>
+<title>Hoploom — Shared SSH Workspace for You and Your Agent</title>
 <meta name="description" content="One local SSH workspace for both you and your AI Agent. You control hosts and approvals. Agent executes with context, not secrets.">
 <meta name="theme-color" content="#000000">
 <style>
@@ -727,12 +727,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
     <nav class="nav">
       <a class="brand" href="#top">
         <span class="brand-icon">&gt;_</span>
-        <span>SSH Server Manager</span>
+        <span>Hoploom</span>
       </a>
       <div class="nav-links">
         <a href="#demo"><span lang="en">Demo</span><span lang="zh-CN">演示</span></a>
         <a href="docs/"><span lang="en">Docs</span><span lang="zh-CN">文档</span></a>
-        <a href="https://github.com/xiayh0107/servers-connect">GitHub</a>
+        <a href="https://github.com/xiayh0107/hoploom">GitHub</a>
         <button class="lang-button" id="langToggle" type="button">中文</button>
         <a class="btn btn-primary" href="docs/quickstart.html"><span lang="en">Get started</span><span lang="zh-CN">快速开始</span></a>
       </div>
@@ -772,7 +772,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
         <button type="button" data-product-screen="skills" aria-pressed="false">Skills</button>
         <button type="button" data-product-screen="credentials" aria-pressed="false">Credentials</button>
       </div>
-      <img id="productScreenshot" class="product-screen" src="assets/ui-hosts.png" alt="Hosts page of the local SSH Server Manager Web UI with fictional acceptance data" width="1440" height="900" loading="lazy">
+      <img id="productScreenshot" class="product-screen" src="assets/ui-hosts.png" alt="Hosts page of the local Hoploom Web UI with fictional acceptance data" width="1440" height="900" loading="lazy">
       <p class="product-caption"><span lang="en">Screenshots of the shipped interface with fictional acceptance data. Host checks and diagnostics are explicit. File conflicts require your overwrite choice.</span><span lang="zh-CN">发行版界面截图，使用虚构的验收数据。连接检查与诊断由你主动触发；文件冲突需明确选择覆盖。</span></p>
     </div>
   </section>
@@ -793,13 +793,13 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
       <div class="demo-shell" id="demoShell" data-demo-theme="dark">
         <div class="demo-windowbar">
           <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="demo-address">ssh-manager.local / sample workspace</span>
+          <span class="demo-address">hoploom.local / sample workspace</span>
           <span class="sample-pill"><i></i><span>Sample data</span></span>
           <button class="demo-accent-button" id="demoAccentButton" type="button" aria-label="Switch accent color"><i></i><span>Teal</span></button><button class="demo-theme-button" id="demoThemeButton" type="button" aria-label="Switch demo theme">Light</button>
         </div>
         <div class="demo-app">
           <aside class="demo-sidebar">
-            <div class="demo-brand"><span class="demo-mark">&gt;_</span><span><strong>SSH Manager</strong><small>Local control plane</small></span></div>
+            <div class="demo-brand"><span class="demo-mark">&gt;_</span><span><strong>Hoploom</strong><small>Local control plane</small></span></div>
             <nav class="demo-nav" aria-label="Demo views">
               <button type="button" data-demo-view="workspace"><span class="nav-glyph">□</span>Files</button>
               <button type="button" data-demo-view="connections" class="active"><span class="nav-glyph">═</span>Hosts <b id="demoHostCount">0</b></button>
@@ -916,10 +916,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
       <a href="docs/"><span lang="en">Documentation</span><span lang="zh-CN">文档</span></a>
       <a href="docs/quickstart.html"><span lang="en">Quickstart</span><span lang="zh-CN">快速开始</span></a>
       <a href="docs/security.html"><span lang="en">Security</span><span lang="zh-CN">安全模型</span></a>
-      <a href="https://github.com/xiayh0107/servers-connect">GitHub</a>
-      <a href="https://github.com/xiayh0107/servers-connect/blob/main/LICENSE"><span lang="en">License</span><span lang="zh-CN">许可证</span></a>
+      <a href="https://github.com/xiayh0107/hoploom">GitHub</a>
+      <a href="https://github.com/xiayh0107/hoploom/blob/main/LICENSE"><span lang="en">License</span><span lang="zh-CN">许可证</span></a>
     </div>
-    <p>© 2026 SSH Server Manager · v0.10.1 · MIT</p>
+    <p>© 2026 Hoploom · v0.11.0 · MIT</p>
   </div>
 </footer>
 
@@ -932,7 +932,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
       </div>
       <button class="close-button" id="closeAgentDialog" type="button" aria-label="Close">×</button>
     </div>
-    <div class="prompt" id="agentInstallCommand"><span lang="en">Read https://github.com/xiayh0107/servers-connect/blob/main/ssh-server-manager/docs/ai-agents.md and follow it to install and configure SSH Server Manager for me. Then: 1) run serverctl doctor and report the results; 2) walk me through first use — if no hosts are managed yet, preview what my ~/.ssh/config could import or guide me through adding a first server (never ask for my password in chat); 3) give me a few example requests I can make next, using the real aliases.</span><span lang="zh-CN">请阅读 https://github.com/xiayh0107/servers-connect/blob/main/ssh-server-manager/docs/ai-agents.md，按照文档为我安装并配置 SSH Server Manager。完成后：1）运行 serverctl doctor 并告诉我检查结果；2）带我完成首次使用——如果还没有托管服务器，先预览我的 ~/.ssh/config 里有哪些可以导入，或引导我添加第一台服务器（密码不要让我在聊天里发送）；3）用真实的别名给我几个接下来可以下达的指令示例。</span></div>
+    <div class="prompt" id="agentInstallCommand"><span lang="en">Read https://github.com/xiayh0107/hoploom/blob/main/ssh-server-manager/docs/ai-agents.md and follow it to install and configure Hoploom for me. Then: 1) run hoploom doctor and report the results; 2) walk me through first use — if no hosts are managed yet, preview what my ~/.ssh/config could import or guide me through adding a first server (never ask for my password in chat); 3) give me a few example requests I can make next, using the real aliases.</span><span lang="zh-CN">请阅读 https://github.com/xiayh0107/hoploom/blob/main/ssh-server-manager/docs/ai-agents.md，按照文档为我安装并配置 Hoploom。完成后：1）运行 hoploom doctor 并告诉我检查结果；2）带我完成首次使用——如果还没有托管服务器，先预览我的 ~/.ssh/config 里有哪些可以导入，或引导我添加第一台服务器（密码不要让我在聊天里发送）；3）用真实的别名给我几个接下来可以下达的指令示例。</span></div>
     <button class="btn btn-primary copy-button" id="copyAgentCommand" type="button"><span lang="en">Copy prompt</span><span lang="zh-CN">复制提示词</span></button>
   </div>
 </dialog>
@@ -945,7 +945,7 @@ document.querySelectorAll("[data-product-screen]").forEach(function (button) {
   button.addEventListener("click", function () {
     document.querySelectorAll("[data-product-screen]").forEach(function (item) { item.setAttribute("aria-pressed", String(item === button)); });
     productScreenshot.src = "assets/ui-" + button.dataset.productScreen + ".png";
-    productScreenshot.alt = button.textContent + " page of the local SSH Server Manager Web UI with fictional acceptance data";
+    productScreenshot.alt = button.textContent + " page of the local Hoploom Web UI with fictional acceptance data";
   });
 });
 var langButton = document.getElementById("langToggle");

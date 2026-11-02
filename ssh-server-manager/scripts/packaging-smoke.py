@@ -26,10 +26,11 @@ from pathlib import Path, PurePosixPath
 
 def check_source_archive(distribution: Path, expected: str) -> str:
     """Validate public development inputs without requiring them in a wheel."""
-    prefix = f"ssh_server_manager-{expected}"
+    prefix = f"hoploom-{expected}"
     required = {
         "pyproject.toml", "MANIFEST.in", "README.md", "SKILL.md",
         "scripts/bootstrap", "scripts/bootstrap.cmd", "scripts/bootstrap.py",
+        "scripts/hoploom", "scripts/hoploom.cmd", "scripts/hoploom.py",
         "scripts/serverctl", "scripts/serverctl.cmd", "scripts/serverctl.py",
         "scripts/build-ui", "scripts/export-openapi.py", "scripts/packaging-smoke.py",
         "scripts/upgrade-smoke.py", "contracts/api-v1.openapi.json",
@@ -78,7 +79,7 @@ def run_smoke(distribution: Path, expected: str) -> None:
         install = str(distribution) + ("[test]" if source_prefix else "")
         subprocess.run([str(python), "-m", "pip", "install", "--disable-pip-version-check",
                         install], cwd=root, check=True, stdout=subprocess.DEVNULL)
-        launcher = scripts / ("serverctl.exe" if os.name == "nt" else "serverctl")
+        launcher = scripts / ("hoploom.exe" if os.name == "nt" else "hoploom")
         isolated = {**os.environ, "SSM_DATA_DIR": str(root / "data"),
                     "SSM_RUNTIME_DIR": str(root / "runtime"),
                     "SSM_ORIGINAL_SSH_CONFIG": str(root / "original.conf"),
@@ -119,6 +120,10 @@ def run_smoke(distribution: Path, expected: str) -> None:
 
         assert cli("--version").stdout.strip().endswith(expected)
         assert json.loads(cli("server", "list", "--json").stdout) == []
+        legacy_launcher = scripts / ("serverctl.exe" if os.name == "nt" else "serverctl")
+        legacy = subprocess.run([str(legacy_launcher), "server", "list", "--json"],
+                                cwd=root, env=isolated, capture_output=True, text=True, timeout=30)
+        assert legacy.returncode == 0 and json.loads(legacy.stdout) == [] and not legacy.stderr
         # Inspect package data through the newly installed interpreter, outside
         # the source tree, so an editable/source import cannot mask omissions.
         metadata = subprocess.run([str(python), "-c",

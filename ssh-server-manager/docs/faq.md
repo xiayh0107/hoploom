@@ -2,7 +2,7 @@
 
 ## Install & environment
 
-**`serverctl doctor` says the vault check failed (Linux).**
+**`hoploom doctor` says the vault check failed (Linux).**
 You need an unlocked Secret Service provider — see
 [platforms.md](platforms.md#linux). On a headless server either run an
 unlocked `gnome-keyring-daemon` or stick to `agent`-kind credentials.
@@ -26,12 +26,12 @@ accept it once with plain `ssh`, or clean the stale entry from
 Check the username on the profile (`server show ALIAS`); confirm the server
 allows password auth (`PasswordAuthentication yes` on the server side); if
 the account uses 2FA/OTP the automated password flow will stop at the OTP
-prompt by design — connect interactively with `serverctl connect`.
+prompt by design — connect interactively with `hoploom connect`.
 
 **`exec` says "No such file or directory" for a command that exists.**
 You passed a compound command as one string without `--shell`. Either
-`serverctl exec a -- ls -la /tmp` (separate args) or
-`serverctl exec a --shell -- 'ls -la /tmp | head'` (one string).
+`hoploom exec a -- ls -la /tmp` (separate args) or
+`hoploom exec a --shell -- 'ls -la /tmp | head'` (one string).
 
 **`--reuse` doesn't speed anything up on Windows.**
 ControlMaster needs Unix sockets; Windows OpenSSH doesn't support it. The
@@ -46,18 +46,18 @@ check `error_code`; run `doctor` to confirm the vault backend.
 
 **`server add` says "server alias already exists".**
 `add` only creates; it never overwrites an existing profile. Update it with
-`serverctl server edit ALIAS` instead — for example `--credential LABEL` to
+`hoploom server edit ALIAS` instead — for example `--credential LABEL` to
 switch the attached credential, or `--hostname`/`--port` to fix the endpoint.
 No need to remove and re-add.
 
 **I typed the wrong password, and `credential add-password` now says the label exists.**
-Replace the stored secret with `serverctl credential edit LABEL
+Replace the stored secret with `hoploom credential edit LABEL
 --replace-secret` — it prompts hidden again. Labels are unique, and a taken
 label is refused *before* the password prompt runs, so you never type the
 secret twice for nothing.
 
 **I changed (or am about to change) a server's login password.**
-Run `serverctl credential rotate ALIAS` in your terminal. It takes the new
+Run `hoploom credential rotate ALIAS` in your terminal. It takes the new
 password at a hidden prompt, waits while you change it on the server, and saves
 it only after a fresh password-only login with it succeeds — so a typo or a
 `passwd` that did not take never replaces a password that still works. Use
@@ -66,12 +66,12 @@ password and the saved copy is wrong; it does not contact the server.
 
 ## Web UI
 
-**The URL says "use the one-time URL opened by serverctl ui".**
+**The URL says "use the one-time URL opened by hoploom ui".**
 The launch token was already used or the server restarted. Stop and rerun
-`serverctl ui` for a fresh URL.
+`hoploom ui` for a fresh URL.
 
 **Port already in use.**
-`serverctl ui --port 0` (automatic selection) or pick another port.
+`hoploom ui --port 0` (automatic selection) or pick another port.
 
 **Passkey registration fails.**
 Use a browser with WebAuthn platform-authenticator support (Safari, Chrome,
@@ -79,7 +79,7 @@ Edge) on `localhost`, not an IP address. Enroll the master password as a
 fallback factor.
 
 **The Files panel cannot open a directory.**
-Run `serverctl server test ALIAS --json` first. The browser requires the
+Run `hoploom server test ALIAS --json` first. The browser requires the
 OpenSSH `sftp` client locally and an enabled SFTP subsystem on the remote host.
 It also honors normal directory permissions and refuses unknown or changed host
 keys. An SSH shell can therefore work while browsing still fails if SFTP is
@@ -94,7 +94,7 @@ manager intentionally does not poll every host in the background.
 ## Data & migration
 
 **Where is everything stored?**
-`serverctl doctor` prints the paths — database in the platform data dir,
+`hoploom doctor` prints the paths — database in the platform data dir,
 rendered config at `~/.ssh/ssh-server-manager.conf`, secrets in the OS
 vault under service `ssh-server-manager`.
 
@@ -102,10 +102,10 @@ vault under service `ssh-server-manager`.
 Export on the machine that is set up, and import on the other:
 
 ```bash
-serverctl export --output inventory.json   # hosts, saved directories, tunnels
-serverctl import inventory.json            # on the other machine: preview
-serverctl credential add-password LABEL    # each credential the preview names
-serverctl import inventory.json --apply
+hoploom export --output inventory.json   # hosts, saved directories, tunnels
+hoploom import inventory.json            # on the other machine: preview
+hoploom credential add-password LABEL    # each credential the preview names
+hoploom import inventory.json --apply
 ```
 
 The file is deterministic JSON with no secrets in it, so it can live in a

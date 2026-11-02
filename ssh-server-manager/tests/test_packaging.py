@@ -30,18 +30,18 @@ def packaging():
 
 
 def make_sdist(directory: Path, version: str, *, root_name: str | None = None) -> Path:
-    root = root_name or f"ssh_server_manager-{version}"
+    root = root_name or f"hoploom-{version}"
     source = directory / "src" / root
     (source / "scripts").mkdir(parents=True, exist_ok=True)
     (source / "PKG-INFO").write_text(f"Version: {version}\n", encoding="utf-8")
-    archive = directory / f"ssh_server_manager-{version}.tar.gz"
+    archive = directory / f"hoploom-{version}.tar.gz"
     with tarfile.open(archive, "w:gz") as handle:
         handle.add(source, arcname=root)
     return archive
 
 
 def test_the_template_has_no_stale_placeholders(packaging):
-    template = packaging.TEMPLATE_DIRECTORY / "homebrew" / "ssh-server-manager.rb.in"
+    template = packaging.TEMPLATE_DIRECTORY / "homebrew" / "hoploom.rb.in"
     assert template.is_file()
     text = template.read_text(encoding="utf-8")
     assert "${SDIST_URL}" in text and "${SDIST_SHA256}" in text
@@ -49,11 +49,11 @@ def test_the_template_has_no_stale_placeholders(packaging):
 
 def test_rendering_fills_the_version_and_the_real_hash(packaging, tmp_path, monkeypatch):
     archive = make_sdist(tmp_path, packaging.package_version())
-    hashed = f"https://files.pythonhosted.org/packages/ab/cd/ef/ssh_server_manager-{packaging.package_version()}.tar.gz"
+    hashed = f"https://files.pythonhosted.org/packages/ab/cd/ef/hoploom-{packaging.package_version()}.tar.gz"
     monkeypatch.setattr(packaging, "pypi_sdist",
                         lambda version: {"url": hashed, "sha256": packaging.sha256_of(archive)})
     assert packaging.main([str(archive), "--output", str(tmp_path / "out")]) == 0
-    rendered = (tmp_path / "out" / "homebrew" / "ssh-server-manager.rb").read_text(encoding="utf-8")
+    rendered = (tmp_path / "out" / "homebrew" / "hoploom.rb").read_text(encoding="utf-8")
     assert f'sha256 "{packaging.sha256_of(archive)}"' in rendered
     # Homebrew's audit wants the file's own URL, not the /packages/source/ redirect.
     assert f'url "{hashed}"' in rendered
@@ -76,7 +76,7 @@ def test_an_sdist_that_does_not_contain_its_root_is_refused(packaging, tmp_path)
 
 
 def test_a_file_that_is_not_an_sdist_is_refused(packaging, tmp_path):
-    not_archive = tmp_path / f"ssh_server_manager-{packaging.package_version()}.tar.gz"
+    not_archive = tmp_path / f"hoploom-{packaging.package_version()}.tar.gz"
     not_archive.write_text("not a tarball", encoding="utf-8")
     with pytest.raises(SystemExit, match="not a readable sdist"):
         packaging.main([str(not_archive), "--output", str(tmp_path / "out")])
@@ -120,5 +120,5 @@ def test_offline_rendering_skips_the_pypi_check(packaging, tmp_path, monkeypatch
     archive = make_sdist(tmp_path, packaging.package_version())
     monkeypatch.setattr(packaging, "pypi_sdist", unreachable)
     assert packaging.main([str(archive), "--offline", "--output", str(tmp_path / "out")]) == 0
-    rendered = (tmp_path / "out" / "homebrew" / "ssh-server-manager.rb").read_text(encoding="utf-8")
-    assert "/packages/source/s/ssh-server-manager/" in rendered
+    rendered = (tmp_path / "out" / "homebrew" / "hoploom.rb").read_text(encoding="utf-8")
+    assert "/packages/source/h/hoploom/" in rendered

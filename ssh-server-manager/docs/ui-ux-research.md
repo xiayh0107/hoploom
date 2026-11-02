@@ -6,7 +6,7 @@ than treating visual polish as the primary fix.
 
 ## Product model
 
-SSH Server Manager is a complex, expert-facing application: people scan a
+Hoploom is a complex, expert-facing application: people scan a
 large resource inventory, move between files and configuration, and perform
 changes whose scope must be obvious. The interface should optimize repeated
 work while keeping potentially destructive operations explicit.

@@ -7,7 +7,7 @@ to offer and also why it can fail in ways ssh does not.
 
 Nothing here installs mosh or guesses whether a remote has `mosh-server`: mosh
 reports that itself. The capability check only answers "is the client here and
-usable on this platform", so `serverctl doctor` can say something more useful
+usable on this platform", so `hoploom doctor` can say something more useful
 than "command not found" later.
 """
 
@@ -40,7 +40,7 @@ def mosh_capability() -> dict[str, Any]:
             "ok": False,
             "path": binary,
             "version": version,
-            "message": "mosh on Windows is not supported by serverctl; use connect",
+            "message": "mosh on Windows is not supported by hoploom; use connect",
         }
     return {"ok": True, "path": binary, "version": version}
 

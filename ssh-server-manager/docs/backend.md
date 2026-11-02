@@ -4,7 +4,7 @@ CLI and HTTP use the same application services over SQLite, OpenSSH and the OS
 credential vault. The React + TypeScript + Vite frontend replaces the former
 browser UI and uses `/api/v1` throughout. Its packaged build is served locally;
 Node.js is a development dependency. Desktop presentation remains optional
-future work: `serverctl app` and `ui-next` are not shipped.
+future work: `hoploom app` and `ui-next` are not shipped.
 
 ## Boundaries
 
@@ -37,7 +37,7 @@ database mutation. Saved-path and note edits remain local metadata operations.
 
 ## Runtime
 
-`serverctl web` and its compatible `serverctl ui` alias use one `LocalRuntime`.
+`hoploom web` and its compatible `hoploom ui` alias use one `LocalRuntime`.
 All previous flags, including `--credential`, `--url-file`, `--status`, and
 `--stop`, remain available. One managed runtime runs at a time: an exclusive
 OS lock in the private runtime directory is held for the runtime's lifetime, so

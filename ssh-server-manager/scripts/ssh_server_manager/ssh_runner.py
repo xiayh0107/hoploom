@@ -327,7 +327,7 @@ class SSHRunner:
             # Invoke the packaged module so the launcher works both from a
             # source checkout and from a pipx/uv tool install. The package
             # parent goes on PYTHONPATH because ssh launches this in a fresh
-            # process that has no knowledge of how serverctl was started.
+            # process that has no knowledge of how hoploom was started.
             package_parent = Path(__file__).resolve().parents[1]
             launcher = directory / "askpass"
             content = (
@@ -1028,7 +1028,7 @@ class SSHRunner:
             if metadata["type"] != "file":
                 raise FileOperationError("remote source must be a regular file", "permission_denied")
             if metadata["size"] > max_bytes:
-                raise FileOperationError("file is larger than the web transfer limit; use serverctl get instead", "too_large")
+                raise FileOperationError("file is larger than the web transfer limit; use hoploom get instead", "too_large")
         returncode, _stdout, stderr = self._run_transfer(
             server,
             batch=self._transfer_batch("get", remote, str(destination)),
@@ -1044,7 +1044,7 @@ class SSHRunner:
             raise FileOperationError(f"transfer reported success but {destination} was not written", "unreachable")
         downloaded_size = destination.stat().st_size
         if max_bytes is not None and downloaded_size > max_bytes:
-            raise FileOperationError("file grew beyond the web transfer limit; use serverctl get instead", "too_large")
+            raise FileOperationError("file grew beyond the web transfer limit; use hoploom get instead", "too_large")
         return {
             "alias": server["alias"],
             "direction": "download",
@@ -1174,7 +1174,7 @@ class SSHRunner:
             if len(entries) > limit:
                 raise ValidationError(
                     f"this tree has more than {limit} entries; copy it in parts or use "
-                    "'serverctl exec' with a remote archive step"
+                    "'hoploom exec' with a remote archive step"
                 )
         return entries
 
@@ -1280,7 +1280,7 @@ class SSHRunner:
             if len(files) + directories > MAX_TREE_ENTRIES:
                 raise ValidationError(
                     f"this tree has more than {MAX_TREE_ENTRIES} entries; copy it in parts or use "
-                    "'serverctl exec' with a remote archive step"
+                    "'hoploom exec' with a remote archive step"
                 )
         root.mkdir(parents=True, exist_ok=True)
         for remote_path, local_path in files:

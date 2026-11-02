@@ -7,7 +7,7 @@ exactly what is missing, and never guess.
 
 Credentials are not handled separately. sshfs runs ssh underneath, so passing
 the managed config plus the same askpass environment the rest of the tool uses
-means a mount authenticates exactly like `serverctl connect` does.
+means a mount authenticates exactly like `hoploom connect` does.
 """
 
 from __future__ import annotations

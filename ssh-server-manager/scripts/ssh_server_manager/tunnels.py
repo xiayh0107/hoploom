@@ -88,7 +88,7 @@ MAX_CONTROL_PATH = 100
 
 @contextmanager
 def _state_lock() -> Iterator[None]:
-    """Serialize state-file read/modify/write across concurrent serverctl calls.
+    """Serialize state-file read/modify/write across concurrent hoploom calls.
 
     O_EXCL is used rather than platform file locking because it behaves the same
     on every OS this tool ships for. A lock left behind by a killed process would
@@ -113,7 +113,7 @@ def _state_lock() -> Iterator[None]:
                 continue
             if time.monotonic() > deadline:
                 raise SSHError(
-                    f"another serverctl process is updating tunnel state ({path}); try again"
+                    f"another hoploom process is updating tunnel state ({path}); try again"
                 )
             time.sleep(0.02)
             continue
@@ -192,7 +192,7 @@ def process_alive(pid: int) -> bool:
 def _reap_if_child(pid: int) -> bool:
     """True when pid is a child that has already exited but is still a zombie.
 
-    A real tunnel outlives the serverctl process that started it and is reaped by
+    A real tunnel outlives the hoploom process that started it and is reaped by
     init, so this only matters when the tunnel's parent is still around (tests,
     and a caller that opens a tunnel and closes it in the same process). Without
     it a zombie answers kill(pid, 0) forever and looks like a live tunnel.
@@ -584,7 +584,7 @@ def open_tunnel(
                 detail
                 or (
                     f"tunnel '{entry['name']}' exited immediately with status "
-                    f"{process.returncode}; run 'serverctl server test {entry['server']}' "
+                    f"{process.returncode}; run 'hoploom server test {entry['server']}' "
                     "to confirm the host is reachable and its host key is known"
                 )
             )

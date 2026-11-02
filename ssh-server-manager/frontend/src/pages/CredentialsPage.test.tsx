@@ -244,5 +244,5 @@ it('says that replacing a saved password does not change it on the server',()=>{
   expect(screen.queryByText(/not the one on the server/)).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Replace'}));
   expect(screen.getByText(/not the one on the server/)).toBeTruthy();
-  expect(screen.getByText('serverctl credential rotate ALIAS')).toBeTruthy();
+  expect(screen.getByText('hoploom credential rotate ALIAS')).toBeTruthy();
 });

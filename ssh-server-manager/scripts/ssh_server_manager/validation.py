@@ -242,7 +242,7 @@ def validate_local_destination(
     """Resolve where a downloaded file should land.
 
     A destination that is an existing directory receives the remote basename, so
-    "serverctl get web1:/srv/app/config.yml ." behaves the way cp does. An
+    "hoploom get web1:/srv/app/config.yml ." behaves the way cp does. An
     existing file is refused unless force, because a download that silently
     overwrites local work is not recoverable.
     """

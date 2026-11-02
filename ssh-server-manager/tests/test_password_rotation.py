@@ -343,7 +343,7 @@ def test_cli_rotation_names_a_jump_that_rejected_its_own_credential(cli_state, m
     assert main(["credential", "rotate", "web1"]) == 1
     err = capsys.readouterr().err
     assert "jump host bastion rejected its own saved credential" in err
-    assert "serverctl server test bastion" in err
+    assert "hoploom server test bastion" in err
     assert cli_state.offered == [("web1", "candidate")]
 
 
@@ -391,7 +391,7 @@ def test_cli_rotation_without_a_terminal_fails_before_any_prompt(cli_state, monk
     assert main(["credential", "rotate", "web1", "--json"]) == 2
     refused = json.loads(capsys.readouterr().out)
     assert "needs a terminal" in refused["message"]
-    assert "serverctl credential rotate web1" in refused["message"]
+    assert "hoploom credential rotate web1" in refused["message"]
 
     cli_state.database.create_server(alias="bare", hostname="c.example", port=22, username="deploy")
     terminal(monkeypatch, tty=True)

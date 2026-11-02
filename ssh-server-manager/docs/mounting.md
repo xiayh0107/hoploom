@@ -1,16 +1,16 @@
 # Mounting a host locally
 
-`serverctl mount` exposes a remote directory as a local folder through sshfs, so
+`hoploom mount` exposes a remote directory as a local folder through sshfs, so
 Finder, Explorer, and your editor can open remote files directly. It reuses the
 managed OpenSSH configuration and the same credential boundary as every other
 connection — there is no second place to configure a password or a key.
 
 ```bash
-serverctl mount web1:/srv/app          # mounts at ~/mnt/web1
-serverctl mount web1:/srv/app ~/work   # or wherever you like
-serverctl mount web1 --read-only       # the login directory, read-only
-serverctl mount --list
-serverctl unmount web1
+hoploom mount web1:/srv/app          # mounts at ~/mnt/web1
+hoploom mount web1:/srv/app ~/work   # or wherever you like
+hoploom mount web1 --read-only       # the login directory, read-only
+hoploom mount --list
+hoploom unmount web1
 ```
 
 ## This one needs software we cannot install for you
@@ -22,7 +22,7 @@ administrator rights and, on macOS, approving a system extension and rebooting.
 Check first:
 
 ```bash
-serverctl doctor
+hoploom doctor
 ```
 
 The `mount` row reports the backend or names the missing piece.
@@ -42,7 +42,7 @@ that case specifically.
 - The default mount point is `~/mnt/ALIAS`, created if missing. A directory that
   already has contents is refused rather than mounted over, so nothing you have
   locally can be hidden by a mount.
-- `serverctl mount --list` reads the operating system's mount table, not a list
+- `hoploom mount --list` reads the operating system's mount table, not a list
   we keep. Eject in Finder or run `umount` yourself and the output stays
   correct.
 - Mounts are not restored after a reboot, and nothing is written to your
@@ -63,8 +63,8 @@ hang.
 
 For those, prefer:
 
-- `serverctl exec ALIAS -- <command>` to run the work where the files are.
-- `serverctl get` / `put` for individual files.
+- `hoploom exec ALIAS -- <command>` to run the work where the files are.
+- `hoploom get` / `put` for individual files.
 - The web UI's file browser for looking around without mounting anything.
 
 Mounting earns its place when you want to edit a handful of remote files in a

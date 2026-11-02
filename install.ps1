@@ -1,15 +1,16 @@
-# One-line installer for the SSH Server Manager Agent Skill (Windows).
+# One-line installer for the Hoploom Agent Skill (Windows).
 #
-#   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/xiayh0107/servers-connect/main/install.ps1 | iex"
+#   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/xiayh0107/hoploom/main/install.ps1 | iex"
 #
 # or from a checkout:  powershell -ExecutionPolicy Bypass -File install.ps1
 #
 # Overrides: $env:SSM_REPO_URL, $env:SSM_INSTALL_DIR, $env:SSM_SKILLS_DIRS (';'-separated).
 $ErrorActionPreference = "Stop"
 
-$SkillName = "ssh-server-manager"
-$RepoUrl = if ($env:SSM_REPO_URL) { $env:SSM_REPO_URL } else { "https://github.com/xiayh0107/servers-connect.git" }
-$InstallDir = if ($env:SSM_INSTALL_DIR) { $env:SSM_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "servers-connect" }
+$SourceDirName = "ssh-server-manager"
+$RepoUrl = if ($env:SSM_REPO_URL) { $env:SSM_REPO_URL } else { "https://github.com/xiayh0107/hoploom.git" }
+$LegacyInstallDir = Join-Path $env:LOCALAPPDATA "servers-connect"
+$InstallDir = if ($env:SSM_INSTALL_DIR) { $env:SSM_INSTALL_DIR } elseif (Test-Path (Join-Path $LegacyInstallDir "$SourceDirName\SKILL.md")) { $LegacyInstallDir } else { Join-Path $env:LOCALAPPDATA "hoploom" }
 
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     throw "python (3.10+) is required - install from python.org or the Microsoft Store"
@@ -17,11 +18,11 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
 
 # 1. Locate or fetch the source tree.
 $Source = $null
-if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "$SkillName\SKILL.md"))) {
-    $Source = Join-Path $PSScriptRoot $SkillName
+if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "$SourceDirName\SKILL.md"))) {
+    $Source = Join-Path $PSScriptRoot $SourceDirName
     Write-Host "Using source checkout: $Source"
-} elseif (Test-Path (Join-Path $InstallDir "$SkillName\SKILL.md")) {
-    $Source = Join-Path $InstallDir $SkillName
+} elseif (Test-Path (Join-Path $InstallDir "$SourceDirName\SKILL.md")) {
+    $Source = Join-Path $InstallDir $SourceDirName
     if ((Test-Path (Join-Path $InstallDir ".git")) -and (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Host "Updating existing install in $InstallDir"
         git -C $InstallDir pull --ff-only
@@ -30,42 +31,23 @@ if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "$SkillName\SKILL.md"
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "git is required to fetch $RepoUrl" }
     Write-Host "Cloning $RepoUrl -> $InstallDir"
     git clone --depth 1 $RepoUrl $InstallDir
-    $Source = Join-Path $InstallDir $SkillName
+    if ($LASTEXITCODE -ne 0) { throw "Could not clone the Hoploom repository" }
+    $Source = Join-Path $InstallDir $SourceDirName
 }
 
 # 2. Dependencies.
 Write-Host "Installing Python dependencies into $Source\.venv ..."
 python (Join-Path $Source "scripts\bootstrap.py") | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Hoploom dependency installation failed" }
 
-# 3. Link into agent skills directories (junctions need no admin rights).
-$candidates = @(
-    (Join-Path $env:USERPROFILE ".claude\skills"),
-    (Join-Path $env:USERPROFILE ".codex\skills")
-)
-if ($env:SSM_SKILLS_DIRS) { $candidates += $env:SSM_SKILLS_DIRS -split ";" }
-
-$linked = @()
-foreach ($dir in $candidates) {
-    $parent = Split-Path $dir -Parent
-    if (-not (Test-Path $parent)) { continue }
-    New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    $target = Join-Path $dir $SkillName
-    if (Test-Path $target) {
-        $item = Get-Item $target -Force
-        if ($item.LinkType) { Remove-Item $target -Force }
-        else { Write-Host "skip: $target exists and is not a link"; continue }
-    }
-    New-Item -ItemType Junction -Path $target -Value $Source | Out-Null
-    $linked += $target
-}
-
-if ($linked.Count) { Write-Host "Skill linked into:`n  $($linked -join "`n  ")" }
-else { Write-Host "No agent skills directory detected. Link manually:`n  New-Item -ItemType Junction -Path `"$env:USERPROFILE\.claude\skills\$SkillName`" -Value `"$Source`"" }
+# 3. Install the canonical Skill and both CLI names; migrate owned old links.
+& (Join-Path $Source ".venv\Scripts\python.exe") (Join-Path $Source "scripts\install-links.py")
+if ($LASTEXITCODE -ne 0) { throw "Could not install Hoploom command and Skill links" }
 
 # 4. Health check.
-$Launcher = Join-Path $Source "scripts\serverctl.cmd"
+$Launcher = Join-Path $Source "scripts\hoploom.cmd"
 Write-Host ""
-Write-Host "Running serverctl doctor ..."
+Write-Host "Running hoploom doctor ..."
 & $Launcher doctor
 if ($LASTEXITCODE -ne 0) {
     Write-Host "doctor reported issues above - see $Source\docs\installation.md"
@@ -73,7 +55,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "SSH Server Manager is installed and the local health check passed."
+Write-Host "Hoploom is installed and the local health check passed."
 Write-Host ""
 Write-Host "If you are an AI agent running this installer, do not stop here:"
 Write-Host "  1. Run: $Launcher server list --json"
@@ -81,4 +63,4 @@ Write-Host "  2. Tell the user which managed hosts are available (or that none a
 Write-Host "  3. Give 3-5 short examples of things they can ask you to do using the real host aliases."
 Write-Host "  4. Explain that saved SSH secrets stay in the local OS vault and do not need to enter chat."
 Write-Host "  5. Say that doctor verified local readiness only; do not claim remote login works unless tested."
-Write-Host "Do not make the user learn serverctl commands unless they ask for the CLI."
+Write-Host "Do not make the user learn hoploom commands unless they ask for the CLI."

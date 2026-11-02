@@ -281,8 +281,8 @@ def preview(document: dict[str, Any], database: Database) -> dict[str, Any]:
                         "message": (
                             f"credential '{label}' does not exist on this machine, so the host "
                             "is imported without one; create it before --apply "
-                            f"(serverctl credential add-password '{label}', or add-key / add-agent) "
-                            f"or attach it later with serverctl server edit {alias} --credential '{label}'"
+                            f"(hoploom credential add-password '{label}', or add-key / add-agent) "
+                            f"or attach it later with hoploom server edit {alias} --credential '{label}'"
                         ),
                     }
                 )

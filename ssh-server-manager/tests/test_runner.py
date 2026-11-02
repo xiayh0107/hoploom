@@ -333,7 +333,7 @@ def test_connect_without_a_tty_fails_fast_with_guidance(tmp_path, monkeypatch, c
     assert exit_code == 2
     stderr = capsys.readouterr().err
     assert "requires a terminal" in stderr
-    assert "serverctl exec" in stderr
+    assert "hoploom exec" in stderr
 
 
 def test_exec_options_are_valid_before_remote_separator():

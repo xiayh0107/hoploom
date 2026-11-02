@@ -1,4 +1,4 @@
-"""Opt-in session transcripts for `serverctl connect`.
+"""Opt-in session transcripts for `hoploom connect`.
 
 A transcript needs a terminal proxy: to record what a session displays *and*
 what the user types, this process has to sit between the user's terminal and

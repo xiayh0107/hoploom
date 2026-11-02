@@ -1,7 +1,9 @@
-# SSH Server Manager
+# Hoploom
 
 **面向人类与 AI 智能体的本地优先 SSH 主机与凭据管理器。**
-一个 CLI（`serverctl`）加一个仅监听本机回环的 Web 界面，用来添加、导入、测试、连接你的服务器——所有密码和密钥口令都存放在操作系统原生凭据保险库中，绝不落盘为明文。
+一个 CLI（`hoploom`）加一个仅监听本机回环的 Web 界面，用来添加、导入、测试、连接你的服务器——所有密码和密钥口令都存放在操作系统原生凭据保险库中，绝不落盘为明文。
+
+原名 **SSH Server Manager**，仓库原名 `servers-connect`。旧命令 `serverctl` 继续兼容；已有用户请按[升级指南](docs/migration.md)迁移，原有数据与密钥库标识保持不变。
 
 [English](README.md) · [文档](docs/) · [安全模型](docs/security.md)
 
@@ -17,7 +19,7 @@
 - **裸写 `~/.ssh/config`** 虽然可控，但完全不管密码，也没有保险库，AI 编程智能体很容易从中泄露秘密；
 - **`sshpass` 一类包装** 把密码放进文件、环境变量或 shell 历史。
 
-SSH Server Manager 从架构上避开这些问题：
+Hoploom 从架构上避开这些问题：
 
 | 特性 | 实现方式 |
 |---|---|
@@ -32,29 +34,29 @@ SSH Server Manager 从架构上避开这些问题：
 ## 快速开始
 
 ```bash
-git clone https://github.com/xiayh0107/servers-connect.git
-cd servers-connect/ssh-server-manager
+git clone https://github.com/xiayh0107/hoploom.git
+cd hoploom/ssh-server-manager
 ./scripts/bootstrap          # Windows 用 scripts\bootstrap.cmd
-./scripts/serverctl doctor   # 检查 ssh、保险库后端和依赖
+./scripts/hoploom doctor   # 检查 ssh、保险库后端和依赖
 ```
 
 添加服务器并连接：
 
 ```bash
-./scripts/serverctl credential add-password work-password   # 本地隐藏输入，存入系统保险库
-./scripts/serverctl server add web1 --hostname web1.example.com --username deploy --credential work-password
-./scripts/serverctl server test web1
-./scripts/serverctl connect web1
+./scripts/hoploom credential add-password work-password   # 本地隐藏输入，存入系统保险库
+./scripts/hoploom server add web1 --hostname web1.example.com --username deploy --credential work-password
+./scripts/hoploom server test web1
+./scripts/hoploom connect web1
 ```
 
 或者把已有配置一键导入：
 
 ```bash
-./scripts/serverctl server import          # 仅预览
-./scripts/serverctl server import --apply
+./scripts/hoploom server import          # 仅预览
+./scripts/hoploom server import --apply
 ```
 
-想用图形界面？`./scripts/serverctl ui` 会用一次性令牌 URL 在浏览器中打开本地管理界面。
+想用图形界面？`./scripts/hoploom ui` 会用一次性令牌 URL 在浏览器中打开本地管理界面。
 
 ## 功能
 
@@ -64,15 +66,15 @@ cd servers-connect/ssh-server-manager
 - **OpenSSH 导入** —— 解析 `~/.ssh/config`（跟随 `Include`），用 `ssh -G` 解析每个字面量别名，先预览后应用。
 - **托管配置渲染** —— 原子写入、仅本用户可读的 `~/.ssh/ssh-server-manager.conf`；原配置始终最后加载，不影响既有默认值。
 - **连接测试** —— `server test` 报告延迟和分类错误码（认证失败 / 主机密钥不受信 / 超时 / DNS 失败等），并记录历史。
-- **远程执行** —— `serverctl exec 别名 -- 命令 参数`；`--shell` 跑管道和复合命令，`--stdin`/`--stdin-binary` 流式传输文件，`--reuse N` 复用连接（macOS/Linux），`--json` 输出机器可读结果。
-- **本地 Web UI** —— 可新建、重命名、删除标签，搜索并批量分配主机，也可按项目/场景筛选；Hosts、Files、Tags、Skills、Credentials 与主机详情均使用真实 API，支持系统、亮色、暗色、高对比主题和可选强调色。连接检查与系统诊断分开操作，展示历史观察及最后成功时间；Files 支持标签页、常用目录、服务端过滤、明确覆盖和容量限制；私钥可显式检查与验证，凭据可独立测试、预览引用并明确解绑删除。查看秘密前需通行密钥或主密码重新认证，15 秒后自动清除；后台运行的界面可用 `serverctl ui --status` / `--stop` 查看和关闭，无需手工记 PID。
-- **端口转发** —— 每台主机保存一条转发（`serverctl tunnel add db1-local --server db1 --local 15432:localhost:5432`），以脱离终端的 `ssh -N` 打开（`tunnel open`），并支持 `status` 与 `close`。默认只绑定 `127.0.0.1`，`status` 依据真实进程判断转发是否存活。
-- **审计日志** —— 本地只追加、权限 600 的记录，覆盖远程命令与秘密查看（`serverctl audit list --json`）。5 MiB 自动轮转，掩码命令行里的凭据形状参数，从不保存秘密值本身。
-- **可移植清单** —— `serverctl export` 输出确定性的 JSON（主机、常用目录、转发配置），可用于 git 或迁移到另一台机器；`serverctl import` 先预览再合并。不含秘密，也不含凭据 ID。
-- **Agent 集成** —— 主机绑定的 Agent Skill，外加可选的 MCP 服务（`serverctl mcp serve`）：默认只读，须以 `--allow-remote` 或 `--allow-exec --allow-command 模式` 启动才可执行，且永远不会泄露秘密。
-- **Mosh 与会话记录** —— `serverctl connect 别名 --mosh` 适合漫游网络；`connect --log` 记录可选、已脱敏的会话文本。
-- **本地 GeoIP** —— `serverctl geo resolve --all --apply` 用本地网段文件补充主机地理位置；不访问任何在线服务，读取清单时也从不查询。
-- **诊断** —— `serverctl doctor` 检查 ssh 与 sftp 可用性、OpenSSH 版本、挂载后端、mosh 与 GeoIP 支持、保险库后端安全性、数据库与配置路径、Python 依赖。
+- **远程执行** —— `hoploom exec 别名 -- 命令 参数`；`--shell` 跑管道和复合命令，`--stdin`/`--stdin-binary` 流式传输文件，`--reuse N` 复用连接（macOS/Linux），`--json` 输出机器可读结果。
+- **本地 Web UI** —— 可新建、重命名、删除标签，搜索并批量分配主机，也可按项目/场景筛选；Hosts、Files、Tags、Skills、Credentials 与主机详情均使用真实 API，支持系统、亮色、暗色、高对比主题和可选强调色。连接检查与系统诊断分开操作，展示历史观察及最后成功时间；Files 支持标签页、常用目录、服务端过滤、明确覆盖和容量限制；私钥可显式检查与验证，凭据可独立测试、预览引用并明确解绑删除。查看秘密前需通行密钥或主密码重新认证，15 秒后自动清除；后台运行的界面可用 `hoploom ui --status` / `--stop` 查看和关闭，无需手工记 PID。
+- **端口转发** —— 每台主机保存一条转发（`hoploom tunnel add db1-local --server db1 --local 15432:localhost:5432`），以脱离终端的 `ssh -N` 打开（`tunnel open`），并支持 `status` 与 `close`。默认只绑定 `127.0.0.1`，`status` 依据真实进程判断转发是否存活。
+- **审计日志** —— 本地只追加、权限 600 的记录，覆盖远程命令与秘密查看（`hoploom audit list --json`）。5 MiB 自动轮转，掩码命令行里的凭据形状参数，从不保存秘密值本身。
+- **可移植清单** —— `hoploom export` 输出确定性的 JSON（主机、常用目录、转发配置），可用于 git 或迁移到另一台机器；`hoploom import` 先预览再合并。不含秘密，也不含凭据 ID。
+- **Agent 集成** —— 主机绑定的 Agent Skill，外加可选的 MCP 服务（`hoploom mcp serve`）：默认只读，须以 `--allow-remote` 或 `--allow-exec --allow-command 模式` 启动才可执行，且永远不会泄露秘密。
+- **Mosh 与会话记录** —— `hoploom connect 别名 --mosh` 适合漫游网络；`connect --log` 记录可选、已脱敏的会话文本。
+- **本地 GeoIP** —— `hoploom geo resolve --all --apply` 用本地网段文件补充主机地理位置；不访问任何在线服务，读取清单时也从不查询。
+- **诊断** —— `hoploom doctor` 检查 ssh 与 sftp 可用性、OpenSSH 版本、挂载后端、mosh 与 GeoIP 支持、保险库后端安全性、数据库与配置路径、Python 依赖。
 
 ## 平台支持
 
@@ -89,19 +91,19 @@ cd servers-connect/ssh-server-manager
 
 本项目同时以 Agent Skill（[SKILL.md](SKILL.md)）形式发布，Claude Code、Codex 等智能体可以安全地管理服务器：智能体获得结构化 JSON 输出和连接错误分类，而 AskPass 架构从设计上保证秘密不进入模型上下文。
 
-Skill 不只教命令，还规定了对话体验：智能体用一次 `--json` 调用回答主机清单问题；交互式 shell 交还给**你的**终端、后续命令由 `exec` 代理执行（`connect` 在无终端环境下会快速报错而不是挂起）；后台 UI 用 `serverctl ui --stop` 一键清理。
+Skill 不只教命令，还规定了对话体验：智能体用一次 `--json` 调用回答主机清单问题；交互式 shell 交还给**你的**终端、后续命令由 `exec` 代理执行（`connect` 在无终端环境下会快速报错而不是挂起）；后台 UI 用 `hoploom ui --stop` 一键清理。
 
 环境专属 skill 只跟随它绑定的主机。智能体先确认目标，再运行
-`serverctl skill resolve 别名 [别名 ...] --json`，再按正常触发规则从 ready
+`hoploom skill resolve 别名 [别名 ...] --json`，再按正常触发规则从 ready
 结果中选择与当前任务相关的 skill，并且只用于返回的 `applies_to` 主机；
 切换主机时会丢弃前一个主机的专属上下文。系统不硬编码任何集群、服务商
 或主机别名。
 
 ```bash
-serverctl skill discover --json
-serverctl skill add ~/.agents/skills/gpu-ops \
+hoploom skill discover --json
+hoploom skill add ~/.agents/skills/gpu-ops \
   --server gpu-lab-01 --server gpu-lab-02 --json
-serverctl skill resolve gpu-lab-01 gpu-lab-02 --json
+hoploom skill resolve gpu-lab-01 gpu-lab-02 --json
 ```
 
 发现过程只读且不联网；登记不会安装或执行 skill；解析只返回元数据与本地
@@ -110,12 +112,12 @@ serverctl skill resolve gpu-lab-01 gpu-lab-02 --json
 一句话部署 skill：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xiayh0107/servers-connect/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/xiayh0107/hoploom/main/install.sh | sh
 ```
 
 自动把 skill 链接进检测到的所有智能体（`~/.claude/skills`、`~/.codex/skills` 等）、安装依赖并运行 `doctor` 体检。Windows 用 `install.ps1`。详见 [docs/ai-agents.md](docs/ai-agents.md)。
 
-只要 CLI 和 Web UI：`pipx install ssh-server-manager`，或 `brew install xiayh0107/tap/ssh-server-manager`。
+只要 CLI 和 Web UI：`pipx install hoploom`，或 `brew install xiayh0107/tap/hoploom`。
 
 ## 文档
 

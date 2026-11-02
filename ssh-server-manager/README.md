@@ -1,16 +1,19 @@
-# SSH Server Manager
+# Hoploom
 
 **A local-first SSH host and credential manager for humans and AI agents.**
-One CLI (`serverctl`) and a loopback-only web UI to add, import, test, and
+One CLI (`hoploom`) and a loopback-only web UI to add, import, test, and
 connect to your servers — with every password and passphrase stored in your
 operating system's native credential vault, never in a plaintext file.
 
-[![test](https://github.com/xiayh0107/servers-connect/actions/workflows/test.yml/badge.svg)](https://github.com/xiayh0107/servers-connect/actions/workflows/test.yml)
-[![PyPI](https://img.shields.io/pypi/v/ssh-server-manager)](https://pypi.org/project/ssh-server-manager/)
-[![release](https://img.shields.io/github/v/release/xiayh0107/servers-connect)](https://github.com/xiayh0107/servers-connect/releases)
+Previously **SSH Server Manager**. `serverctl` remains compatible; see the
+[upgrade guide](docs/migration.md) before replacing an existing installation.
+
+[![test](https://github.com/xiayh0107/hoploom/actions/workflows/test.yml/badge.svg)](https://github.com/xiayh0107/hoploom/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/hoploom)](https://pypi.org/project/hoploom/)
+[![release](https://img.shields.io/github/v/release/xiayh0107/hoploom)](https://github.com/xiayh0107/hoploom/releases)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
 
-[简体中文说明](README.zh-CN.md) · [Documentation](docs/) · [Security model](docs/security.md) · [Website](https://xiayh0107.github.io/servers-connect/)
+[简体中文说明](README.zh-CN.md) · [Documentation](docs/) · [Security model](docs/security.md) · [Website](https://xiayh0107.github.io/hoploom/)
 
 > 🤖 **Using an AI agent?** The skill deploys to every agent on your machine
 > in one line — dependencies, links, and health check included. See the
@@ -29,7 +32,7 @@ Most SSH managers make you choose between convenience and custody:
 - **`sshpass`-style wrappers** put passwords in files, env vars, or shell
   history.
 
-SSH Server Manager is different by construction:
+Hoploom is different by construction:
 
 | Property | How |
 |---|---|
@@ -44,29 +47,29 @@ SSH Server Manager is different by construction:
 ## Quick start
 
 ```bash
-git clone https://github.com/xiayh0107/servers-connect.git
-cd servers-connect/ssh-server-manager
+git clone https://github.com/xiayh0107/hoploom.git
+cd hoploom/ssh-server-manager
 ./scripts/bootstrap          # Windows: scripts\bootstrap.cmd
-./scripts/serverctl doctor   # verify ssh, vault backend, and dependencies
+./scripts/hoploom doctor   # verify ssh, vault backend, and dependencies
 ```
 
 Add a server and connect:
 
 ```bash
-./scripts/serverctl credential add-password work-password   # prompts locally, stores in OS vault
-./scripts/serverctl server add web1 --hostname web1.example.com --username deploy --credential work-password
-./scripts/serverctl server test web1
-./scripts/serverctl connect web1
+./scripts/hoploom credential add-password work-password   # prompts locally, stores in OS vault
+./scripts/hoploom server add web1 --hostname web1.example.com --username deploy --credential work-password
+./scripts/hoploom server test web1
+./scripts/hoploom connect web1
 ```
 
 Or import everything you already have:
 
 ```bash
-./scripts/serverctl server import          # preview only
-./scripts/serverctl server import --apply
+./scripts/hoploom server import          # preview only
+./scripts/hoploom server import --apply
 ```
 
-Prefer a GUI? `./scripts/serverctl ui` opens the local web interface in your
+Prefer a GUI? `./scripts/hoploom ui` opens the local web interface in your
 browser with a one-time tokenized URL.
 
 ## Features
@@ -93,21 +96,21 @@ browser with a one-time tokenized URL.
 - **Connection testing** — `server test` reports latency and a classified
   error code (`authentication-failed`, `host-key-untrusted`, `timeout`,
   `dns-failed`, …) and records history.
-- **Remote execution** — `serverctl exec alias -- cmd args`, with `--shell`
+- **Remote execution** — `hoploom exec alias -- cmd args`, with `--shell`
   for pipelines, `--stdin`/`--stdin-binary` for streaming files, `--reuse N`
   for ControlMaster connection sharing (macOS/Linux), and `--json` for
   machine-readable results.
-- **Saved working directories** — `serverctl path add web1 /srv/app --label
-  app` records where you work on a host; `serverctl path resolve` answers
+- **Saved working directories** — `hoploom path add web1 /srv/app --label
+  app` records where you work on a host; `hoploom path resolve` answers
   "where does this fleet keep its application" in one read, with no connection,
   grouping hosts that share a layout.
-- **File transfer** — `serverctl get web1:/srv/app/config.yml .` and
-  `serverctl put ./config.yml web1:/srv/app/` move files over the same SFTP path
+- **File transfer** — `hoploom get web1:/srv/app/config.yml .` and
+  `hoploom put ./config.yml web1:/srv/app/` move files over the same SFTP path
   and vault credentials, and `--recursive` copies a whole tree, so no password
   prompt appears where `scp` and `rsync` would ask for one they cannot supply.
-- **Local mounting** — `serverctl mount web1:/srv/app` exposes a remote
+- **Local mounting** — `hoploom mount web1:/srv/app` exposes a remote
   directory to Finder, Explorer, and your editor through sshfs. Needs a FUSE
-  layer that `serverctl doctor` checks for; see
+  layer that `hoploom doctor` checks for; see
   [docs/mounting.md](docs/mounting.md).
 - **Local web UI** — manage servers and credentials, test connections,
   create/rename/delete tags and bulk-assign searchable hosts, choose
@@ -117,26 +120,26 @@ browser with a one-time tokenized URL.
   Hosts distinguish connection checks from system diagnosis and show the last
   successful observation. Reveal a stored secret for 15 seconds after passkey
   or master-password re-authentication. The session shows its actual expiry. Inspect or shut down a background instance with
-  `serverctl ui --status` / `--stop` — no pid bookkeeping.
-- **Port forwarding** — save a forward per host (`serverctl tunnel add db1-local
+  `hoploom ui --status` / `--stop` — no pid bookkeeping.
+- **Port forwarding** — save a forward per host (`hoploom tunnel add db1-local
   --server db1 --local 15432:localhost:5432`) and open it as a detached `ssh -N`
   (`tunnel open`), with `status` and `close`. Binds to `127.0.0.1` unless you say
   otherwise, and `status` proves a forward is live against the real process.
 - **Audit log** — a local, append-only, mode-600 record of remote commands and
-  secret reveals (`serverctl audit list --json`). It rotates itself at 5 MiB,
+  secret reveals (`hoploom audit list --json`). It rotates itself at 5 MiB,
   masks credential-shaped arguments, and never stores a secret value.
-- **Portable inventory** — `serverctl export` writes a deterministic JSON
+- **Portable inventory** — `hoploom export` writes a deterministic JSON
   document of hosts, saved paths, and tunnels for git or another machine;
-  `serverctl import` previews, then merges. Never secrets or credential ids.
+  `hoploom import` previews, then merges. Never secrets or credential ids.
 - **Agent integration** — a host-bound Agent Skill, plus an optional MCP server
-  (`serverctl mcp serve`) that is read-only unless started with `--allow-remote`
+  (`hoploom mcp serve`) that is read-only unless started with `--allow-remote`
   or `--allow-exec --allow-command PATTERN`, and never reveals a secret.
-- **Mosh and session transcripts** — `serverctl connect ALIAS --mosh` for
+- **Mosh and session transcripts** — `hoploom connect ALIAS --mosh` for
   roaming links, and `connect --log` for an opt-in, redacted transcript.
-- **Local GeoIP** — `serverctl geo resolve --all --apply` fills host locations
+- **Local GeoIP** — `hoploom geo resolve --all --apply` fills host locations
   from a local range file; no web service, and never a lookup when reading the
   inventory.
-- **Diagnostics** — `serverctl doctor` checks ssh availability and version,
+- **Diagnostics** — `hoploom doctor` checks ssh availability and version,
   SFTP availability, mount backend availability, mosh and GeoIP support, vault
   backend safety, database and config paths, and Python dependencies.
 
@@ -148,7 +151,7 @@ browser with a one-time tokenized URL.
 | Credential vault | Keychain | Secret Service (gnome-keyring / KWallet / KeePassXC) | Credential Locker |
 | Secret reveal re-auth | Touch ID passkey or master password | passkey or master password | Windows Hello passkey or master password |
 | Connection reuse (`--reuse`) | ✅ | ✅ | — (OpenSSH ControlMaster needs Unix sockets; a warning is printed) |
-| Background tunnels (`serverctl tunnel`) | ✅ | ✅ | ✅ |
+| Background tunnels (`hoploom tunnel`) | ✅ | ✅ | ✅ |
 | Mosh (`connect --mosh`) | ✅ | ✅ | — (the Windows client is not offered; use `connect`) |
 | Session transcripts (`connect --log`) | ✅ | ✅ | — (needs a POSIX pty; the command says so) |
 
@@ -166,20 +169,20 @@ The skill also encodes conversation UX, not just commands: agents answer
 inventory questions from a single `--json` call, hand interactive shells to
 *your* terminal and proxy follow-up commands through `exec` (`connect`
 refuses to run without a TTY instead of hanging), and clean up a background
-UI with `serverctl ui --stop`.
+UI with `hoploom ui --stop`.
 
 Environment-specific skills can follow only the hosts where they belong. The
-agent identifies the target first, runs `serverctl skill resolve ALIAS
+agent identifies the target first, runs `hoploom skill resolve ALIAS
 [ALIAS ...] --json`, then selects relevant ready skills by their normal trigger
 rules and applies them only to their returned `applies_to` aliases. Switching
 hosts discards the previous host-specific context; no cluster name or provider
 is hard-coded.
 
 ```bash
-serverctl skill discover --json
-serverctl skill add ~/.agents/skills/gpu-ops \
+hoploom skill discover --json
+hoploom skill add ~/.agents/skills/gpu-ops \
   --server gpu-lab-01 --server gpu-lab-02 --json
-serverctl skill resolve gpu-lab-01 gpu-lab-02 --json
+hoploom skill resolve gpu-lab-01 gpu-lab-02 --json
 ```
 
 Discovery is local and read-only. Registration does not install or execute a
@@ -189,15 +192,15 @@ bodies. See the [agent deployment guide](docs/ai-agents.md#host-specific-agent-s
 Deploy the skill with one line:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xiayh0107/servers-connect/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/xiayh0107/hoploom/main/install.sh | sh
 ```
 
 It links the skill into every detected agent (`~/.claude/skills`,
 `~/.codex/skills`, …), installs dependencies, and runs `doctor`. Windows
 uses `install.ps1`. See [docs/ai-agents.md](docs/ai-agents.md).
 
-Only the CLI and Web UI: `pipx install ssh-server-manager`, or
-`brew install xiayh0107/tap/ssh-server-manager`.
+Only the CLI and Web UI: `pipx install hoploom`, or
+`brew install xiayh0107/tap/hoploom`.
 
 ## Documentation
 
@@ -205,7 +208,7 @@ Only the CLI and Web UI: `pipx install ssh-server-manager`, or
 |---|---|
 | [docs/installation.md](docs/installation.md) | Per-platform install, requirements, bootstrap |
 | [docs/quickstart.md](docs/quickstart.md) | First 10 minutes, common workflows |
-| [docs/cli.md](docs/cli.md) | Complete `serverctl` reference |
+| [docs/cli.md](docs/cli.md) | Complete `hoploom` reference |
 | [docs/web-ui.md](docs/web-ui.md) | Web UI walkthrough and its security gates |
 | [docs/security.md](docs/security.md) | Threat model and security invariants |
 | [docs/platforms.md](docs/platforms.md) | Platform-specific behavior, headless Linux |

@@ -18,7 +18,7 @@ def export_schema() -> dict:
     with tempfile.TemporaryDirectory(prefix="ssm-openapi-") as directory:
         app = create_app(Database(Path(directory) / "manager.db"), launch_token="schema-only", port=8765)
         schema = app.openapi()
-    schema["info"]["title"] = "SSH Server Manager Local API"
+    schema["info"]["title"] = "Hoploom Local API"
     schema["info"]["version"] = "1"
     schema["info"]["description"] = (
         "Loopback-only API. Exchange the private single-use launch URL for an HttpOnly session cookie, "

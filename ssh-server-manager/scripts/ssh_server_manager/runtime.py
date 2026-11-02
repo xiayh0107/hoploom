@@ -208,7 +208,7 @@ def _serving_on_port(port: int) -> bool:
 
 
 def ui_status() -> dict[str, Any]:
-    """Report the UI process recorded by the most recent ``serverctl ui`` run."""
+    """Report the UI process recorded by the most recent ``hoploom ui`` run."""
     state = _read_ui_state()
     if state is None:
         return {"running": False, "message": "no managed UI process is recorded"}
@@ -226,7 +226,7 @@ def ui_status() -> dict[str, Any]:
 
 
 def ui_stop(*, timeout: float = 5.0) -> dict[str, Any]:
-    """Stop the UI process recorded by the most recent ``serverctl ui`` run."""
+    """Stop the UI process recorded by the most recent ``hoploom ui`` run."""
     state = _read_ui_state()
     status = ui_status()
     if not status["running"]:
@@ -309,7 +309,7 @@ class LocalRuntime:
         # closing a free port would let another process take it in between.
         if not 0 <= self.requested_port <= 65535:
             raise UIError("UI port must be between 0 and 65535")
-        already_running = UIError("a managed UI is already running; use serverctl web --status or --stop")
+        already_running = UIError("a managed UI is already running; use hoploom web --status or --stop")
         if ui_status()["running"]:
             raise already_running
         import uvicorn
@@ -399,9 +399,9 @@ class LocalRuntime:
             raise UIError("--no-open requires --url-file so the one-time URL stays out of terminal output")
         self._prepare(url_file=url_file)
         if self._url_file is not None:
-            print(f"SSH Server Manager launch URL written to {self._url_file}", flush=True)
+            print(f"Hoploom launch URL written to {self._url_file}", flush=True)
         elif open_browser:
-            print(f"SSH Server Manager opening in your browser on port {self.port}", flush=True)
+            print(f"Hoploom opening in your browser on port {self.port}", flush=True)
         web_state = getattr(getattr(self._server.config.app, "state", None), "web", None)
         problem = getattr(web_state, "config_problem", None)
         if problem:

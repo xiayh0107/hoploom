@@ -557,7 +557,7 @@ class CredentialApplicationService:
         plan = expected or self.rotation_plan(host_identifier, new_label=new_label)
         alias = plan["host_alias"]
         changed = (f"{alias} or its credential changed since the rotation started, so nothing was saved; "
-                   f"if the server already has the new password, run 'serverctl credential rotate {alias}' "
+                   f"if the server already has the new password, run 'hoploom credential rotate {alias}' "
                    "again and enter it")
         with credential_lock(self.database.path, plan["credential_id"]):
             try:
@@ -609,8 +609,8 @@ class CredentialApplicationService:
                     raise DatabaseError(
                         f"{alias} accepted the new password, but saving it failed ({exc}); the previous "
                         "saved password was restored where possible. The server already has the new "
-                        f"password: run 'serverctl credential rotate {alias}' again once this is fixed, or "
-                        f"'serverctl credential edit {plan['credential_label']} --replace-secret'"
+                        f"password: run 'hoploom credential rotate {alias}' again once this is fixed, or "
+                        f"'hoploom credential edit {plan['credential_label']} --replace-secret'"
                     ) from exc
                 audit.record("password_rotate", actor=actor, alias=alias, credential=credential["label"], ok=True)
                 # The proof belongs to whichever credential now holds the password.
@@ -620,7 +620,7 @@ class CredentialApplicationService:
                 except Exception as exc:
                     raise DatabaseError(
                         f"the new password for {alias} was saved in {credential['label']}, but the managed "
-                        f"SSH config could not be rendered ({exc}); fix that, then run 'serverctl config render'"
+                        f"SSH config could not be rendered ({exc}); fix that, then run 'hoploom config render'"
                     ) from exc
             return {**outcome, "committed": True, "mode": plan["mode"],
                     "credential": self.database.get_credential(credential["id"])}

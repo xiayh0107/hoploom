@@ -331,14 +331,14 @@ def test_cli_duplicate_conflicts_point_to_the_edit_commands(tmp_path, monkeypatc
     assert main(["server", "add", "t_rna", "--hostname", "h2.example", "--username", "ops", "--json"]) == 2
     conflict = json.loads(capsys.readouterr().out)
     assert "server alias already exists" in conflict["message"]
-    assert "serverctl server edit t_rna" in conflict["message"]
+    assert "hoploom server edit t_rna" in conflict["message"]
 
     assert main(["credential", "add-agent", "trna", "--json"]) == 0
     capsys.readouterr()
     assert main(["credential", "add-agent", "trna", "--json"]) == 2
     conflict = json.loads(capsys.readouterr().out)
     assert "credential label already exists" in conflict["message"]
-    assert "serverctl credential edit trna" in conflict["message"]
+    assert "hoploom credential edit trna" in conflict["message"]
 
     # A taken label fails before the hidden prompt runs, so users correcting a
     # typo never type the secret twice for nothing.
@@ -355,12 +355,12 @@ def test_add_help_text_points_to_the_edit_commands(capsys):
     with pytest.raises(SystemExit) as server_help:
         main(["server", "add", "--help"])
     assert server_help.value.code == 0
-    assert "serverctl server edit" in capsys.readouterr().out
+    assert "hoploom server edit" in capsys.readouterr().out
 
     with pytest.raises(SystemExit) as credential_help:
         main(["credential", "add-password", "--help"])
     assert credential_help.value.code == 0
-    assert "serverctl credential edit" in capsys.readouterr().out
+    assert "hoploom credential edit" in capsys.readouterr().out
 
 
 def test_audit_list_reports_events_newest_first(tmp_path, monkeypatch, capsys):

@@ -1,11 +1,11 @@
-# Homebrew formula for ssh-server-manager, published in the xiayh0107/tap tap
+# Homebrew formula for hoploom, published in the xiayh0107/tap tap
 # (https://github.com/xiayh0107/homebrew-tap).
 #
 # Rendered by `scripts/prepare_packaging` from the sdist PyPI serves; do not
 # edit the version or sha256 by hand. Then, in the tap checkout:
 #
-#   cp ssh-server-manager.rb "$(brew --repository xiayh0107/tap)/Formula/"
-#   brew update-python-resources xiayh0107/tap/ssh-server-manager
+#   cp hoploom.rb "$(brew --repository xiayh0107/tap)/Formula/"
+#   brew update-python-resources xiayh0107/tap/hoploom
 #
 # and open a pull request there, so `brew test-bot` builds it on macOS and Linux.
 # `brew update-python-resources` fills the resource blocks: they pin every
@@ -13,11 +13,11 @@
 # generated in the tap rather than committed from here. Homebrew installs every
 # resource from source, which is why Rust (pydantic-core, cryptography, bcrypt),
 # OpenSSL, libffi and libyaml are build or runtime dependencies here.
-class SshServerManager < Formula
+class Hoploom < Formula
   include Language::Python::Virtualenv
 
   desc "Manage SSH hosts and credentials for humans and AI agents"
-  homepage "https://github.com/xiayh0107/servers-connect"
+  homepage "https://github.com/xiayh0107/hoploom"
   url "${SDIST_URL}"
   sha256 "${SDIST_SHA256}"
   license "MIT"
@@ -35,6 +35,7 @@ class SshServerManager < Formula
   end
 
   test do
+    assert_match "hoploom #{version}", shell_output("#{bin}/hoploom --version")
     assert_match "serverctl #{version}", shell_output("#{bin}/serverctl --version")
     # The vault is the OS keychain, which a test sandbox does not have, so the
     # check stays on local metadata: create a host and read it back.
@@ -42,7 +43,7 @@ class SshServerManager < Formula
     ENV["SSM_RUNTIME_DIR"] = (testpath/"run").to_s
     ENV["SSM_MANAGED_SSH_CONFIG"] = (testpath/"managed.conf").to_s
     ENV["SSM_ORIGINAL_SSH_CONFIG"] = (testpath/"none").to_s
-    system bin/"serverctl", "server", "add", "web1", "--hostname", "web1.example.com", "--username", "deploy"
-    assert_match "web1.example.com", shell_output("#{bin}/serverctl server list --json")
+    system bin/"hoploom", "server", "add", "web1", "--hostname", "web1.example.com", "--username", "deploy"
+    assert_match "web1.example.com", shell_output("#{bin}/hoploom server list --json")
   end
 end

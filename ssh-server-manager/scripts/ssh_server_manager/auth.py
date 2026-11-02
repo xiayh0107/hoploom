@@ -72,10 +72,10 @@ class RevealAuth:
         existing = self.database.list_webauthn_credentials()
         options = generate_registration_options(
             rp_id=self.rp_id,
-            rp_name="SSH Server Manager",
+            rp_name="Hoploom",
             user_id=self._user_id(),
             user_name=os.environ.get("USER") or os.environ.get("USERNAME") or "local-user",
-            user_display_name="Local SSH Server Manager user",
+            user_display_name="Local Hoploom user",
             exclude_credentials=[PublicKeyCredentialDescriptor(id=b64url_decode(item["credential_id"])) for item in existing],
             authenticator_selection=AuthenticatorSelectionCriteria(
                 resident_key=ResidentKeyRequirement.PREFERRED,

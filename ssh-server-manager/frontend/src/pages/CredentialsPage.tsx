@@ -98,7 +98,7 @@ function CredentialDetail({credential,hosts,runtime,onSaved,onTest,onDelete,onRe
 
 /** Replacing a saved password never touches a server; say so where it happens. */
 function LocalOnlyPasswordHint() {
-  return <p className="field-hint">Changes only the password saved on this computer, not the one on the server. After changing a server's password, run <span className="mono">serverctl credential rotate ALIAS</span>, which checks the new one before saving it.</p>;
+  return <p className="field-hint">Changes only the password saved on this computer, not the one on the server. After changing a server's password, run <span className="mono">hoploom credential rotate ALIAS</span>, which checks the new one before saving it.</p>;
 }
 
 function SecretField({label,stored,mask,vault,editing,value,show,clearing,busy,onStart,onValue,onShow,onCancel,onClear,onReveal}:{label:string;stored:boolean;mask:string;vault:string;editing:boolean;value:string;show:boolean;clearing:boolean;busy:boolean;onStart:()=>void;onValue:(value:string)=>void;onShow:()=>void;onCancel:()=>void;onClear:()=>void;onReveal:()=>void}) {

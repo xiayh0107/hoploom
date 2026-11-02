@@ -93,6 +93,8 @@ def test_connect_runs_the_client_with_the_askpass_environment(database, monkeypa
 
     monkeypatch.setattr(subprocess, "call", fake_call)
     monkeypatch.setitem(os.environ, "LANG", "C")
+    monkeypatch.delenv("LC_ALL", raising=False)
+    monkeypatch.delenv("LC_CTYPE", raising=False)
     assert mosh.connect(database, "box") == 0
     assert observed["command"][0] == str(binary)
     # A non-UTF-8 environment is corrected rather than left for mosh to reject.

@@ -25,7 +25,7 @@ from .vault import VaultProtocol, VaultError
 
 MAX_SKILL_FRONTMATTER_BYTES = 64 * 1024
 MAX_SKILL_YAML_DEPTH = 64
-TRANSPORT_SKILL_NAME = "ssh-server-manager"
+TRANSPORT_SKILL_NAMES = frozenset({"hoploom", "ssh-server-manager"})
 
 
 class _BoundedSafeLoader(yaml.SafeLoader):
@@ -305,9 +305,9 @@ class SkillService:
 
     @staticmethod
     def _ensure_host_scoped(metadata: dict[str, str]) -> None:
-        if skill_name_key(metadata["name"]) == skill_name_key(TRANSPORT_SKILL_NAME):
+        if skill_name_key(metadata["name"]) in TRANSPORT_SKILL_NAMES:
             raise ValidationError(
-                "ssh-server-manager is the base transport skill and cannot be bound to a host"
+                "Hoploom is the base transport skill and cannot be bound to a host"
             )
 
     def register(
@@ -454,7 +454,7 @@ class SkillService:
         for path in self._discover_paths(roots if roots is not None else self.standard_roots()):
             try:
                 metadata = self.read_metadata(path)
-                if skill_name_key(metadata["name"]) == skill_name_key(TRANSPORT_SKILL_NAME):
+                if skill_name_key(metadata["name"]) in TRANSPORT_SKILL_NAMES:
                     continue
                 candidate: dict[str, Any] = {**metadata, "status": "available"}
             except ValidationError as exc:

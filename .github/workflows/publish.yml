@@ -1,9 +1,9 @@
 name: publish
 
-# Publishes ssh-server-manager to PyPI via Trusted Publishing (OIDC) — no
+# Publishes hoploom to PyPI via Trusted Publishing (OIDC) — no
 # long-lived token stored in the repo. One-time setup on pypi.org:
 #   Account → Publishing → Add a pending publisher
-#   project: ssh-server-manager, owner: xiayh0107, repo: servers-connect,
+#   project: hoploom, owner: xiayh0107, repo: hoploom,
 #   workflow: publish.yml, environment: pypi
 on:
   release:
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/ssh-server-manager
+      url: https://pypi.org/p/hoploom
     permissions:
       id-token: write
     steps:

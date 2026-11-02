@@ -1,11 +1,11 @@
 ---
-name: ssh-server-manager
-description: Connect to saved SSH servers and run remote commands through the bundled `serverctl` CLI, with passwords and keys held in the OS credential vault. Use whenever the user asks to SSH into, connect to, log in to, or run/check something on a server, names a saved host alias, or reports an SSH failure (中文触发：连接/登录服务器、新建/添加/登记服务器、SSH 主机、远程执行命令) — always reach for this BEFORE raw ssh. Replaces ssh/scp/sshpass for managed hosts: serverctl injects vault credentials itself (never ask the user for a password) and applies its managed config, sidestepping ~/.ssh/config gaps and VPN/proxy fake-IP DNS traps that make bare `ssh <alias>` fail. Also use it to transfer files to or from a managed host (上传/下载文件、传文件), to recall a host's saved working directories (常用目录、工作目录), to mount a remote directory locally with sshfs (挂载远程目录), to discover, register, attach, or resolve host-bound Agent Skills (主机专属 Skill、给 Host 绑定 Skill), and to add, import, list, edit, test, or diagnose connection profiles, ProxyJump hosts, and the local web management UI.
+name: hoploom
+description: Connect to saved SSH servers and run remote commands through the bundled `hoploom` CLI, with passwords and keys held in the OS credential vault. Use whenever the user asks to SSH into, connect to, log in to, or run/check something on a server, names a saved host alias, or reports an SSH failure (中文触发：连接/登录服务器、新建/添加/登记服务器、SSH 主机、远程执行命令) — always reach for this BEFORE raw ssh. Replaces ssh/scp/sshpass for managed hosts: hoploom injects vault credentials itself (never ask the user for a password) and applies its managed config, sidestepping ~/.ssh/config gaps and VPN/proxy fake-IP DNS traps that make bare `ssh <alias>` fail. Also use it to transfer files to or from a managed host (上传/下载文件、传文件), to recall a host's saved working directories (常用目录、工作目录), to mount a remote directory locally with sshfs (挂载远程目录), to discover, register, attach, or resolve host-bound Agent Skills (主机专属 Skill、给 Host 绑定 Skill), and to add, import, list, edit, test, or diagnose connection profiles, ProxyJump hosts, and the local web management UI.
 ---
 
-# SSH Server Manager
+# Hoploom
 
-If this client can speak MCP but cannot read a Skill, `serverctl mcp serve`
+If this client can speak MCP but cannot read a Skill, `hoploom mcp serve`
 exposes the local inventory read-only, plus host checks and allowlisted
 commands when it is started with `--allow-remote` / `--allow-exec` +
 `--allow-command`. It never reveals a secret. Everything below still applies.
@@ -14,15 +14,23 @@ loopback-only, needs a per-launch bearer token (`--token-file` keeps it out of a
 terminal transcript), and refuses browser origins, so it is not a way to reach
 this inventory from a web page.
 
-## First: route through `serverctl`, not raw ssh
+## First: route through `hoploom`, not raw ssh
 
-- The command is `serverctl` — there is no `ssh-server-manager` or `sshsm`
-  binary. Resolve it in this order: `command -v serverctl`, then
-  `~/bin/serverctl`, then `./scripts/serverctl` inside this skill directory.
-- Start every host task with `serverctl server list --json` and match the
+- The package and command are both `hoploom`. Resolve it from PATH, then
+  `~/.local/bin/hoploom`, then the absolute `scripts/hoploom` path inside
+  this Skill directory. On Windows use `Get-Command hoploom`, then
+  `%LOCALAPPDATA%\hoploom\bin\hoploom.cmd`, then this Skill's
+  `scripts\hoploom.cmd`. The old `serverctl` command remains compatible.
+- If only an older installation exists, use its known `serverctl` launcher
+  and follow `docs/migration.md` for upgrades. Do not guess a package name
+  from a missing executable or install a second copy merely because PATH
+  is incomplete. For a genuinely new CLI installation use `pipx install
+  hoploom` (or `uv tool install hoploom`). Never install the unrelated PyPI
+  package `serverctl`. There is no `sshsm` binary.
+- Start every host task with `hoploom server list --json` and match the
   user's wording to an alias; users abbreviate aliases or describe hosts in
   other languages.
-- Once the target alias or aliases are known, run `serverctl skill resolve
+- Once the target alias or aliases are known, run `hoploom skill resolve
   <alias> [<alias> ...] --json` before acting. Treat the returned `ready`
   skills as the eligible set: load one through the normal local skill loader
   when its description and trigger rules match the task, and apply it only to
@@ -31,28 +39,28 @@ this inventory from a web page.
 - Do not run `ssh`, `scp`, `sftp`, `rsync`, or `sshpass` against a managed
   host. Bare `ssh <alias>` reads only `~/.ssh/config`, so the alias falls
   through to DNS resolution — VPN/proxy fake-IP resolvers (Clash, Surge, …)
-  then black-hole the connection with misleading errors. `serverctl
+  then black-hole the connection with misleading errors. `hoploom
   test/exec/connect` apply the managed config and vault credentials
   automatically.
 - Never ask the user to send a password in chat, and never pass one through
   `sshpass`, argv, or env vars. If a credential is genuinely missing, say
-  which one and route secret entry through `serverctl ui` or the CLI's
+  which one and route secret entry through `hoploom ui` or the CLI's
   hidden local prompt.
 - Do not edit `~/.ssh/config` or add an `Include` for the managed conf on
   your own initiative — plain ssh would still lack vault credential
   injection, so it fixes nothing.
 
-`serverctl` is the source of truth for managed SSH hosts. Keep secrets inside the operating-system credential vault and never print, log, or request them in chat.
+`hoploom` is the source of truth for managed SSH hosts. Keep secrets inside the operating-system credential vault and never print, log, or request them in chat.
 
 ## After installation or first setup
 
-Do not treat a successful `serverctl doctor` as the end of an installation or
+Do not treat a successful `hoploom doctor` as the end of an installation or
 configuration task. Installation is capability injection; onboarding is
 complete only when the user understands what they can now ask you to do.
 
 After `doctor` succeeds:
 
-1. Run `serverctl server list --json` once. This is a local inventory read; do
+1. Run `hoploom server list --json` once. This is a local inventory read; do
    not add a remote `server test` just for onboarding.
 2. Summarize the actual managed hosts in user language. If there are no hosts,
    say the tool is ready and offer to import an existing OpenSSH config or add
@@ -61,7 +69,7 @@ After `doctor` succeeds:
 3. Give 3–5 short examples of natural-language requests tied to the real
    inventory, such as “check GPU usage on lab-gpu”, “show me what is in
    /data on web1”, or “upload this file to web1”. Do not make the user learn
-   `serverctl` syntax to benefit from the product.
+   `hoploom` syntax to benefit from the product.
 4. State the security benefit in one sentence: saved passwords/passphrases
    stay in the local OS vault and do not need to be sent in chat or exposed to
    the model.
@@ -77,25 +85,25 @@ the user can now accomplish.
 
 ## Quick start
 
-Use `serverctl` from PATH when available; otherwise run the launcher from
+Use `hoploom` from PATH when available; otherwise run the launcher from
 this skill directory:
 
 ```bash
-./scripts/serverctl doctor
-./scripts/serverctl server list --json
-./scripts/serverctl ui
+./scripts/hoploom doctor
+./scripts/hoploom server list --json
+./scripts/hoploom ui
 ```
 
 If the launcher reports missing dependencies, run `./scripts/bootstrap` once. Read `references/commands.md` for the complete command surface.
 Use `references/troubleshooting.md` when a UI port, remote command, file stream,
 or externally published service behaves unexpectedly.
 
-`serverctl ui` chooses an available loopback port and opens the browser itself. It
+`hoploom ui` chooses an available loopback port and opens the browser itself. It
 never prints the one-time launch token. If the browser must not be opened, write
 the tokenized URL to a local mode-600 file instead:
 
 ```bash
-./scripts/serverctl ui --no-open --url-file /tmp/ssh-server-manager-url
+./scripts/hoploom ui --no-open --url-file /tmp/ssh-server-manager-url
 ```
 
 The bundled interface follows the repository's Paper redesign: page headers
@@ -122,7 +130,7 @@ Do not redirect UI output to a shared log or copy the URL into chat. A fixed por
 can be requested with `--port PORT`; use `--port 0` to return to automatic port
 selection.
 
-`serverctl web` is the explicit browser-shell command; `ui` remains a compatible
+`hoploom web` is the explicit browser-shell command; `ui` remains a compatible
 alias with the same flags, credential deep link, and shared `--status`/`--stop`
 record. Both open the bundled React interface for Hosts, host details, Files,
 Tags, Skill Library and Credentials. If a managed UI is already running,
@@ -149,49 +157,49 @@ Saved metadata can omit an encrypted key's fingerprint until validation.
 
 ## Choose the workflow
 
-- To inspect configured hosts, run `serverctl server list --json`.
-- To route a host task to environment-specific guidance, run `serverctl skill
+- To inspect configured hosts, run `hoploom server list --json`.
+- To route a host task to environment-specific guidance, run `hoploom skill
   resolve <alias> [<alias> ...] --json` after identifying every target. With
   multiple hosts, keep the returned `applies_to` partitions intact; never
   extend a skill's instructions to an unlisted host.
 - To register local host-specific guidance, inspect candidates with
-  `serverctl skill discover --json`, then use `serverctl skill add PATH
+  `hoploom skill discover --json`, then use `hoploom skill add PATH
   --server <alias>`; `--server` may repeat. Discovery is local and read-only:
   it neither installs nor binds a skill.
-- To import OpenSSH aliases, preview with `serverctl server import`, then apply with `serverctl server import --apply`. Report the authentication warning and selected source config: importing does not create managed credentials or verify login. The source remains available to OpenSSH as an authentication fallback; an empty credential binding alone is not evidence of failed authentication. Explicit overwrite preserves saved credential bindings and notes. Run an explicit `server test` before claiming an imported host works.
-- To add a server that is not managed yet, follow **When the user wants to add a server** below: collect the fields in chat, create the profile, then route secret entry through `serverctl ui --credential ALIAS`.
-- To add or update secrets, prefer the local UI — `serverctl ui --credential ALIAS` opens the browser directly on that server's credential form. When using the CLI, let `getpass` prompt locally; never pass a password as an argument or environment variable.
-- To diagnose access, run `serverctl server test <alias> --json` before connecting.
+- To import OpenSSH aliases, preview with `hoploom server import`, then apply with `hoploom server import --apply`. Report the authentication warning and selected source config: importing does not create managed credentials or verify login. The source remains available to OpenSSH as an authentication fallback; an empty credential binding alone is not evidence of failed authentication. Explicit overwrite preserves saved credential bindings and notes. Run an explicit `server test` before claiming an imported host works.
+- To add a server that is not managed yet, follow **When the user wants to add a server** below: collect the fields in chat, create the profile, then route secret entry through `hoploom ui --credential ALIAS`.
+- To add or update secrets, prefer the local UI — `hoploom ui --credential ALIAS` opens the browser directly on that server's credential form. When using the CLI, let `getpass` prompt locally; never pass a password as an argument or environment variable.
+- To diagnose access, run `hoploom server test <alias> --json` before connecting.
 - To identify a host's operating system or choose install/admin commands, use
   recent saved `facts` from inventory first. If they are missing or stale, run
-  `serverctl server diagnose <alias> --json`: its remote check reports `os`,
+  `hoploom server diagnose <alias> --json`: its remote check reports `os`,
   `os_family`, and `package_manager` across Linux, macOS, BSDs, and Windows, so
   use the reported package manager instead of guessing `apt`.
-- To record a user or agent observation, use `serverctl server note <alias> --text "..." --append --json`; notes are local metadata and must never contain secrets.
-- To find where a host keeps its files, run `serverctl path resolve <alias> [<alias> ...] --json` before browsing or transferring. It reports the directories the user saved, in one read and without connecting; identical paths across hosts arrive grouped under `applies_to`.
-- To browse a host's files visually, run `serverctl ui`, choose the host under **Files**, and start from its remote home directory.
-- To copy one file, run `serverctl get <alias>:/remote/path ./local` or `serverctl put ./local <alias>:/remote/path`. Never use `scp`, `rsync`, or `sftp` against a managed host — they cannot see the vault and will prompt or fail.
-- To open a remote directory in a local editor, run `serverctl mount <alias>:/remote/path`. Check the `mount` row of `serverctl doctor` first: mounting needs macFUSE, libfuse, or SSHFS-Win, and if it is missing report that rather than retrying.
-- To open a live shell, hand `serverctl connect <alias>` to the user's own terminal — see **When the user says "connect"** below. Do not run `connect` from an agent tool call.
-- To execute a remote command, run `serverctl exec <alias> -- <command>`; add `--stdin` when piping UTF-8 text.
-- To execute one compound POSIX command string, use `serverctl exec <alias> --shell -- 'command && command'`; this avoids accidentally sending the whole string as an executable name.
-- To manage hosts or reveal a stored password locally, run `serverctl ui`. The UI requires reauthentication before revealing a secret.
+- To record a user or agent observation, use `hoploom server note <alias> --text "..." --append --json`; notes are local metadata and must never contain secrets.
+- To find where a host keeps its files, run `hoploom path resolve <alias> [<alias> ...] --json` before browsing or transferring. It reports the directories the user saved, in one read and without connecting; identical paths across hosts arrive grouped under `applies_to`.
+- To browse a host's files visually, run `hoploom ui`, choose the host under **Files**, and start from its remote home directory.
+- To copy one file, run `hoploom get <alias>:/remote/path ./local` or `hoploom put ./local <alias>:/remote/path`. Never use `scp`, `rsync`, or `sftp` against a managed host — they cannot see the vault and will prompt or fail.
+- To open a remote directory in a local editor, run `hoploom mount <alias>:/remote/path`. Check the `mount` row of `hoploom doctor` first: mounting needs macFUSE, libfuse, or SSHFS-Win, and if it is missing report that rather than retrying.
+- To open a live shell, hand `hoploom connect <alias>` to the user's own terminal — see **When the user says "connect"** below. Do not run `connect` from an agent tool call.
+- To execute a remote command, run `hoploom exec <alias> -- <command>`; add `--stdin` when piping UTF-8 text.
+- To execute one compound POSIX command string, use `hoploom exec <alias> --shell -- 'command && command'`; this avoids accidentally sending the whole string as an executable name.
+- To manage hosts or reveal a stored password locally, run `hoploom ui`. The UI requires reauthentication before revealing a secret.
 
 ## When the user says "connect"
 
-`serverctl connect` opens a real interactive SSH shell and needs a TTY that
+`hoploom connect` opens a real interactive SSH shell and needs a TTY that
 stays attached to the user's keyboard. Agent tool-execution environments run
 one command at a time without one, so never run `connect` yourself and never
 run a `server test` first just to stall — respond in seconds, not minutes:
 
 1. Check the host's `last_test_status` and `last_test_at` in `server list --json`. Only run
-   `serverctl server test <alias> --json --timeout 10` when there is no recent
+   `hoploom server test <alias> --json --timeout 10` when there is no recent
    successful result.
-2. Reply briefly: give the exact absolute `serverctl connect <alias>` command
+2. Reply briefly: give the exact absolute `hoploom connect <alias>` command
    for the user to paste into their own terminal, and say you can instead run
    commands on that host directly.
 3. Treat the host as the active context: interpret follow-up requests
-   ("check the load", "what's in /var/log") as `serverctl exec <alias> -- …`
+   ("check the load", "what's in /var/log") as `hoploom exec <alias> -- …`
    calls and report the results. Use `--reuse 300` when several commands will
    run in a row.
 
@@ -199,13 +207,13 @@ Keep the whole explanation to two or three sentences. Do not present a
 numbered menu of connection modes.
 
 If the user wants a record of a session, hand them
-`serverctl connect <alias> --log --log-path FILE`; it needs a POSIX terminal, and
+`hoploom connect <alias> --log --log-path FILE`; it needs a POSIX terminal, and
 reading the transcript back is disclosing session content, so do it only when
 asked and never paste a whole transcript into a reply.
 
 If the user asks for mosh (roaming, flaky mobile links), hand them
-`serverctl connect <alias> --mosh` — it needs the local `mosh` client and
-`mosh-server` on the host, and `serverctl doctor --json` reports the client.
+`hoploom connect <alias> --mosh` — it needs the local `mosh` client and
+`mosh-server` on the host, and `hoploom doctor --json` reports the client.
 Never substitute a plain ssh session for a mosh request, or the reverse.
 
 If a check reports an unknown host key, hand the same `connect` command to
@@ -221,16 +229,16 @@ user's SSH policy to make a connection succeed.
 Drive the whole onboarding yourself instead of waiting for the user to
 discover the commands. Reach for this flow whenever the user asks to add,
 register, or set up a server (中文：新建/添加/登记服务器) — and offer it when a
-task names a host that is not in `serverctl server list --json`, instead of
+task names a host that is not in `hoploom server list --json`, instead of
 falling back to raw ssh.
 
 1. Collect the non-secret fields in chat: alias, hostname or IP, port,
    username, and any ProxyJump hop. Ask only for what is missing. If the host
    already lives in the user's `~/.ssh/config`, offer `server import` instead.
 2. Create the profile:
-   `serverctl server add ALIAS --hostname HOST --username USER --json`.
+   `hoploom server add ALIAS --hostname HOST --username USER --json`.
    `add` only creates: if it reports the alias already exists, the profile is
-   already there — switch to `serverctl server edit ALIAS ...` for the change
+   already there — switch to `hoploom server edit ALIAS ...` for the change
    the user actually wants (for example `--credential LABEL`). Never remove
    and re-create to work around a conflict, and never treat a taken
    credential label as anything other than a `credential edit` task.
@@ -240,14 +248,14 @@ falling back to raw ssh.
    `server edit ALIAS --credential LABEL`. A password or key passphrase is
    different: the CLI prompt needs a local TTY an agent tool call does not
    have, and asking for the secret in chat is forbidden. Launch
-   `serverctl ui --credential ALIAS` as a background command — the browser
+   `hoploom ui --credential ALIAS` as a background command — the browser
    opens directly on that server's edit dialog with the new-credential form
    expanded, so the user types the password once and clicks **Save and use**.
    When no browser is available, hand two commands to the user's own terminal
-   (the same delivery rule as `connect`): `serverctl credential add-password
-   LABEL`, then `serverctl server edit ALIAS --credential LABEL`.
+   (the same delivery rule as `connect`): `hoploom credential add-password
+   LABEL`, then `hoploom server edit ALIAS --credential LABEL`.
 4. Once the user says the secret is saved, run
-   `serverctl server test ALIAS --json` and report the result. Do not treat
+   `hoploom server test ALIAS --json` and report the result. Do not treat
    the host as usable before the test passes.
 
 Keep the guidance to a sentence or two per step, and never paste a menu of
@@ -259,34 +267,34 @@ onboarding options.
 rather than asking with a menu (中文：改服务器密码 / 更新保存的密码):
 
 - **The server's login password is changing, or just changed.** Hand
-  `serverctl credential rotate ALIAS` to the user's own terminal (the same
+  `hoploom credential rotate ALIAS` to the user's own terminal (the same
   delivery rule as `connect`). It takes the new password at a hidden prompt,
   waits while the user changes it on the server — for example
-  `serverctl connect ALIAS`, then `passwd` — proves a fresh password-only
+  `hoploom connect ALIAS`, then `passwd` — proves a fresh password-only
   login with it, and only then saves it. Until that login succeeds the saved
   password is untouched, so stopping is always safe. If other hosts share the
   credential, they keep the old password and ALIAS moves to a new credential
   named `LABEL (ALIAS)` (or `--new-label`).
 - **Only the saved copy is wrong** (a typo when it was added; the server already
-  has the right password). `serverctl credential edit LABEL --replace-secret`
+  has the right password). `hoploom credential edit LABEL --replace-secret`
   replaces the local copy without checking the server, as does the credential's
   **Replace** field in the browser.
 
-serverctl never changes a password on a server itself. Do not script `passwd` or
+hoploom never changes a password on a server itself. Do not script `passwd` or
 `chpasswd` through `exec`, and never put an old or new password in a command,
-chat, or file. When the user reports that the rotation saved, `serverctl server
+chat, or file. When the user reports that the rotation saved, `hoploom server
 test ALIAS --json` confirms the host from your side.
 
 ## Interaction style
 
-- Treat `serverctl` as an agent-facing capability API, not something the user
+- Treat `hoploom` as an agent-facing capability API, not something the user
   must learn. Prefer “I can check GPU usage on `lab-gpu`” over teaching the
   corresponding CLI command. Show exact commands when the user asks for them,
   needs an interactive terminal command, or is troubleshooting the tool.
 - Do not assume the user has read this README, the web UI, or any product
   documentation. Introduce capabilities at the moment they become useful,
   using the user's host names and task language rather than feature names.
-- Answer inventory questions from one `serverctl server list --json` call.
+- Answer inventory questions from one `hoploom server list --json` call.
   Lead with a one-line summary (total hosts, how many tested ok, failed,
   untested), then a compact table with only alias, host:port, user, and last
   test status. Keep per-field detail, speculation about causes, and raw JSON
@@ -316,8 +324,8 @@ test ALIAS --json` confirms the host from your side.
 - The UI is the heavyweight path: it starts a persistent local process.
   Launch it only when the user explicitly asks for the UI or a workflow needs
   it (entering a secret, revealing a password). Check whether one is already
-  running with `serverctl ui --status`, and when the user is done, clean up
-  with `serverctl ui --stop` (it also removes the `--url-file`).
+  running with `hoploom ui --status`, and when the user is done, clean up
+  with `hoploom ui --stop` (it also removes the `--url-file`).
 
 ## Safety rules
 
@@ -328,7 +336,7 @@ test ALIAS --json` confirms the host from your side.
 5. Preview imports and destructive operations. Do not overwrite an existing alias unless the user explicitly requests it.
 6. Use connection profiles for separate accounts on the same endpoint; keep one username and one default credential per alias.
 7. Treat UI launch tokens like credentials: keep them in the local browser or an explicitly requested mode-600 file, never in terminal output, logs, screenshots, or chat.
-8. Keep remote file browsing read-only. Move a file only when the user asked for that file to move, and use `serverctl cp`, `get`, or `put` — never raw `scp`, `rsync`, or `sftp`, which bypass the vault. Confirm before overwriting anything; `get` refuses an existing local file unless `--force` is passed, and that refusal is a prompt for the user, not an obstacle to work around.
+8. Keep remote file browsing read-only. Move a file only when the user asked for that file to move, and use `hoploom cp`, `get`, or `put` — never raw `scp`, `rsync`, or `sftp`, which bypass the vault. Confirm before overwriting anything; `get` refuses an existing local file unless `--force` is passed, and that refusal is a prompt for the user, not an obstacle to work around.
 9. Fail closed on host-skill ambiguity or stale registrations. Never choose
    between same-name paths, silently substitute a missing skill, or reuse a
    skill resolved for a previous host.
@@ -343,7 +351,7 @@ it. `last_resolved_ip` records a local DNS result from an explicit check; throug
 ProxyJump it need not be the remote peer's address. Saved `host_key` fingerprints
 and states (`verified`, `unknown`, `changed`, `revoked`) describe the last
 explicit check and never replace OpenSSH verification. Manual `geo` metadata is
-optional; no GeoIP lookup runs when reading inventory. `serverctl geo resolve`
+optional; no GeoIP lookup runs when reading inventory. `hoploom geo resolve`
 fills it from a local file on request, never from a web service. Changing hostname or
 port clears observations for the old endpoint while retaining manual geography.
 
@@ -362,24 +370,24 @@ Read `references/security.md` before changing credential, reveal, AskPass, brows
 
 Three tools, in the order to reach for them:
 
-1. `serverctl path resolve` tells you where the user works on a host. Saved
+1. `hoploom path resolve` tells you where the user works on a host. Saved
    directories are metadata the user wrote — they are not proof a path still
    exists, so treat a resolve result as a starting point, not a guarantee.
-2. `serverctl get` / `put` / `cp` move one file over the same SFTP path and
+2. `hoploom get` / `put` / `cp` move one file over the same SFTP path and
    vault credentials as everything else, and `--recursive` moves a whole tree.
    Exactly one side is `ALIAS:PATH`; host-to-host copies are refused. `get` will
    not overwrite an existing local file without `--force`, and that refusal is a
    question for the user, not something to force past.
-3. `serverctl mount` is for editing a handful of files in a local editor. It
+3. `hoploom mount` is for editing a handful of files in a local editor. It
    depends on a FUSE stack that is often absent, and it makes remote latency
    look local — anything that walks a large tree (a repo-wide search, a build,
-   an editor indexing a project) belongs in `serverctl exec` instead.
+   an editor indexing a project) belongs in `hoploom exec` instead.
 
 For a whole tree, add `--recursive`: `put --recursive DIR ALIAS:PATH` and
 `get --recursive ALIAS:DIR LOCAL` copy every file and directory under the same
 SFTP path, creating the destination directory. It refuses symlinks anywhere in
 the tree (resolve them first, or copy the target) and refuses more than 4000
-entries per call — for a repository-sized tree use `serverctl exec` with a remote
+entries per call — for a repository-sized tree use `hoploom exec` with a remote
 archive step or a mount instead, and do not raise the cap by looping blindly.
 
 ## Ports and tunnels
@@ -391,10 +399,10 @@ implements it is separate, and only `tunnel status` can tell you whether that
 process is alive on this machine.
 
 ```bash
-./scripts/serverctl tunnel add db1-local --server db1 --local 15432:localhost:5432
-./scripts/serverctl tunnel open db1-local --json
-./scripts/serverctl tunnel status --json
-./scripts/serverctl tunnel close db1-local
+./scripts/hoploom tunnel add db1-local --server db1 --local 15432:localhost:5432
+./scripts/hoploom tunnel open db1-local --json
+./scripts/hoploom tunnel status --json
+./scripts/hoploom tunnel close db1-local
 ```
 
 Rules that keep this honest:
@@ -409,7 +417,7 @@ Rules that keep this honest:
 - `open` either returns a pid or fails with the host's own error (unknown host
   key, port already taken, bad credential). Never report a tunnel as up when
   `open` failed, and do not retry it in a loop; a host that has never been
-  verified needs `serverctl server test ALIAS` first, because a background
+  verified needs `hoploom server test ALIAS` first, because a background
   forward has no terminal in which to confirm a host key.
 - Re-running `open` on a live profile is safe (it reports `already_open`), and
   closing a profile that is not running is a no-op, so a teardown step can be
@@ -421,8 +429,8 @@ Rules that keep this honest:
 
 ## Moving inventory between machines
 
-`serverctl export --output inventory.json` writes a deterministic document of
-hosts, saved directories, and forwarding profiles; `serverctl import FILE`
+`hoploom export --output inventory.json` writes a deterministic document of
+hosts, saved directories, and forwarding profiles; `hoploom import FILE`
 previews and `--apply` writes it. Use it instead of copying `manager.db` or
 hand-editing records, and prefer it over re-adding hosts one by one.
 
@@ -441,14 +449,14 @@ Secrets never travel between machines; there is no sync for them.
 ## What you leave behind
 
 Every `exec`, `reveal`, `connect`, tunnel `open`/`close`, and `credential
-rotate` check is appended to a local audit log (`serverctl audit list`, newest
+rotate` check is appended to a local audit log (`hoploom audit list`, newest
 first). The log is evidence of what was attempted and what it returned, so when
 the user asks "what did you do on that host", read it instead of reconstructing
 from memory:
 
 ```bash
-./scripts/serverctl audit list --alias web1 --json
-./scripts/serverctl audit list --event reveal --limit 20
+./scripts/hoploom audit list --alias web1 --json
+./scripts/hoploom audit list --event reveal --limit 20
 ```
 
 It never stores a secret: a reveal appears as a credential label and slot, and
@@ -458,12 +466,12 @@ net, not a licence to pass secrets through command lines.
 
 ## Host-bound skills
 
-`ssh-server-manager` remains the transport and credential boundary for every
+`hoploom` remains the transport and credential boundary for every
 managed host. Host-bound skills add environment-specific procedures without
 making those procedures global. For example, a YuLab operations skill may be
 bound to `YuLabServer`, `YuLabGNode01`, and related nodes; the same mechanism
 works for any other host or host group; no environment alias or host-specific
-skill name is hard-coded. `ssh-server-manager` itself is the deliberate
+skill name is hard-coded. `hoploom` itself is the deliberate
 exception: it is the base transport skill for every managed host, so discovery
 omits it and registration or refresh rejects it rather than treating it as
 host-bound guidance.

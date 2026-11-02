@@ -64,7 +64,7 @@ export default function PortsPage({hosts}: {hosts: Host[]}) {
     </div>
 
     {!rows.length && !loading ? <EmptyState title="No saved forwards">
-      <p>Save a forward with <code className="mono">serverctl tunnel add</code>, then open it from your terminal or with <code className="mono">serverctl tunnel open</code>. It will show up here with its live state.</p>
+      <p>Save a forward with <code className="mono">hoploom tunnel add</code>, then open it from your terminal or with <code className="mono">hoploom tunnel open</code>. It will show up here with its live state.</p>
     </EmptyState> : <>
       <div className="table-wrap ports-table">
         <table>
@@ -105,7 +105,7 @@ export default function PortsPage({hosts}: {hosts: Host[]}) {
         {!filtered.length && <p className="table-empty muted">{loading ? 'Loading forwards…' : 'No forwards match this filter.'}</p>}
       </div>
       <div className="table-footer">
-        <span>{counts.running} {counts.running === 1 ? 'forward is' : 'forwards are'} live from this machine and stop when the session ends. Opening and closing stays in your terminal: <code className="mono">serverctl tunnel open NAME</code>.</span>
+        <span>{counts.running} {counts.running === 1 ? 'forward is' : 'forwards are'} live from this machine and stop when the session ends. Opening and closing stays in your terminal: <code className="mono">hoploom tunnel open NAME</code>.</span>
         <span className="muted">{rows.length} saved</span>
       </div>
     </>}

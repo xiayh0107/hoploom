@@ -38,7 +38,7 @@ from .validation import ValidationError
 
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
-SERVER_NAME = "ssh-server-manager"
+SERVER_NAME = "hoploom"
 
 MAX_TEXT_RESULT_BYTES = 256 * 1024
 
@@ -287,7 +287,7 @@ class McpServer:
             "serverInfo": {
                 "name": SERVER_NAME,
                 "version": __version__,
-                "title": "SSH Server Manager",
+                "title": "Hoploom",
             },
             # Nothing here is a secret; state plainly what the server will not do.
             "instructions": (

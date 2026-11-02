@@ -1,7 +1,7 @@
 # The local web UI
 
 ```bash
-serverctl web
+hoploom web
 ```
 
 The bundled React + TypeScript interface opens in your browser and is served
@@ -15,12 +15,12 @@ by an installed package.
 
 | Situation | Command |
 |---|---|
-| Normal use | `serverctl web` (`serverctl ui` is a compatible alias) |
-| Enter credentials for a new host | `serverctl ui --credential ALIAS` |
-| Fixed port | `serverctl ui --port 8422` |
-| Browser cannot be opened automatically | `serverctl ui --no-open --url-file /path/to/private-url` |
-| Check the managed UI | `serverctl ui --status` |
-| Stop the managed UI | `serverctl ui --stop` |
+| Normal use | `hoploom web` (`hoploom ui` is a compatible alias) |
+| Enter credentials for a new host | `hoploom ui --credential ALIAS` |
+| Fixed port | `hoploom ui --port 8422` |
+| Browser cannot be opened automatically | `hoploom ui --no-open --url-file /path/to/private-url` |
+| Check the managed UI | `hoploom ui --status` |
+| Stop the managed UI | `hoploom ui --stop` |
 
 The launcher picks a free port, prints only the port number, and opens a
 single-use tokenized URL. The token never appears in terminal output. A
@@ -42,7 +42,7 @@ URLs, cookies or tokens in screenshots or browser traces.
 
 ## Hosts and host details
 
-![Hosts inventory using disposable fixture data](https://xiayh0107.github.io/servers-connect/assets/ui-hosts.png)
+![Hosts inventory using disposable fixture data](https://xiayh0107.github.io/hoploom/assets/ui-hosts.png)
 
 Hosts shows aliases, cached system identity, latest saved check and latency,
 endpoint, tags and credential metadata. Search and tag/status filters run over
@@ -69,7 +69,7 @@ metadata and never starts DNS, SSH, SFTP or vault access. It displays:
 - Host-key state/fingerprint and sanitized system facts with observation time.
 - Notes, saved directories and assigned Agent Skills.
 
-![Host details with cached connection and system metadata](https://xiayh0107.github.io/servers-connect/assets/ui-host-details.png)
+![Host details with cached connection and system metadata](https://xiayh0107.github.io/hoploom/assets/ui-host-details.png)
 
 **Run check** verifies connectivity and saves resolved-IP/host-key observations;
 it does not collect OS or hardware facts. **Collect host info** explicitly runs
@@ -100,7 +100,7 @@ IP through a jump chain need not be the remote peer address; saved host-key
 states never bypass OpenSSH verification.
 
 **Browse files** opens the selected host's file workspace. **Copy** copies a
-`serverctl connect ALIAS` command for the user's own terminal. Notes, saved-path
+`hoploom connect ALIAS` command for the user's own terminal. Notes, saved-path
 changes and Skill assignments are explicit local writes. Host Skill bindings
 route instructions; they do not install or execute anything.
 
@@ -125,7 +125,7 @@ Web checks do not accept keys, and changed or revoked keys require investigation
 
 ## Files and saved directories
 
-![Files workspace using disposable fixture data](https://xiayh0107.github.io/servers-connect/assets/ui-files.png)
+![Files workspace using disposable fixture data](https://xiayh0107.github.io/hoploom/assets/ui-files.png)
 
 Files connects to the host you explicitly select and starts at its remote home
 or the requested saved directory. Tabs keep independent host/path context.
@@ -147,7 +147,7 @@ are explicit CSRF-protected actions, with the transfer bound to its original
 host and directory even if you switch tabs while it runs. The runtime advertises
 the 100 MiB web limit. Downloads check source size before transfer and staged
 size afterward; nonregular entries and symlinks with unverifiable target size
-are refused. Use `serverctl get` / `serverctl put` for larger transfers.
+are refused. Use `hoploom get` / `hoploom put` for larger transfers.
 
 An upload first refuses an existing destination. Its conflict dialog shows
 available existing metadata and offers a different filename or explicit
@@ -169,7 +169,7 @@ Uploads, overwrites and downloads are never automatically replayed.
 
 ## Tags
 
-![Tags list and draft membership editor](https://xiayh0107.github.io/servers-connect/assets/ui-tags.png)
+![Tags list and draft membership editor](https://xiayh0107.github.io/hoploom/assets/ui-tags.png)
 
 Tags uses a searchable, sortable left list and a right-hand tag editor. Rename a
 tag and check or uncheck host membership as one draft; All/Tagged/Untagged and a
@@ -185,7 +185,7 @@ and reject reserved commas/control characters.
 
 ## Skill Library
 
-![Skill Library metadata and host assignments](https://xiayh0107.github.io/servers-connect/assets/ui-skills.png)
+![Skill Library metadata and host assignments](https://xiayh0107.github.io/hoploom/assets/ui-skills.png)
 
 The searchable left list shows registered name, path, status and assigned
 hosts. The right view shows frontmatter description, local SKILL.md path,
@@ -207,7 +207,7 @@ whether an agent uses it. Discovery and registration install or execute nothing.
 
 ## Credentials
 
-![Credentials inventory with metadata only](https://xiayh0107.github.io/servers-connect/assets/ui-credentials.png)
+![Credentials inventory with metadata only](https://xiayh0107.github.io/hoploom/assets/ui-credentials.png)
 
 Credentials has a searchable list with key/password/agent filters and a right
 editor for the selected reusable identity. Ordinary list and detail reads show
@@ -218,7 +218,7 @@ Password and passphrase replacements are entered directly into the local UI.
 Leaving a field blank preserves the saved value; spaces remain part of the
 secret. A saved passphrase is cleared only by the explicit clear control.
 Replacing a password changes only the copy saved on this computer, and the
-field says so. When a server's own password changes, `serverctl credential
+field says so. When a server's own password changes, `hoploom credential
 rotate ALIAS` checks the new one against the server before saving it.
 Private-key credentials point to a local file; the manager never deletes that
 file when a credential is removed.
@@ -333,7 +333,7 @@ table, `Saved` means the profile exists and nothing holds the port, and
 `Orphaned` marks a process whose profile was deleted (the row still shows the
 forward it holds, because the running record keeps that shape). Listing is
 read-only on purpose: opening and closing stay in the terminal
-(`serverctl tunnel open|close`), so a browser reload can never start a process,
+(`hoploom tunnel open|close`), so a browser reload can never start a process,
 and no button on this page mutates anything. The Listening column reports the
 one thing worth warning about: `Loopback` for a `127.0.0.1` bind, `Exposed` when
 a profile binds `0.0.0.0` (or another non-loopback address), and `on HOST` for a

@@ -1,7 +1,7 @@
 # UI redesign: backend follow-ups
 
 Working list of backend support that the Paper redesign (file
-"SSH Server Manager · UI 重新设计") relies on. Each item records the backend
+"Hoploom · UI 重新设计") relies on. Each item records the backend
 support now available and the UI fallback when an observation is unavailable.
 Not published to the docs site yet.
 
@@ -156,7 +156,7 @@ the post-transfer check as a guard in case the file grew.
 
 **Implemented:** the web backend preflights SFTP metadata and retains the
 post-transfer guard. It rejects nonregular files and symlink downloads whose
-target size cannot be verified; use `serverctl get` for those. SFTP is the
+target size cannot be verified; use `hoploom get` for those. SFTP is the
 authority even when the SSH shell has a different chroot namespace.
 
 The new UI should disable downloads for
@@ -176,7 +176,7 @@ publishes with an atomic SFTP hardlink, so a concurrently created target cannot
 be overwritten. Temporary files are removed after publication or cleaned up
 on failure. Unsupported servers return `unsupported` (v1 HTTP 501), without
 falling back to direct put. `overwrite=true` explicitly allows direct put.
-CLI `serverctl put` keeps its existing default overwrite behavior.
+CLI `hoploom put` keeps its existing default overwrite behavior.
 
 Also: the client builds `path` as `dir + "/" + file.name`. The server should
 reject dot/parent path segments and trailing directory paths. The API accepts
@@ -250,7 +250,7 @@ Recorded so they are not re-requested:
 - **Hide details** mode: masking is done by not rendering values; search then
   matches only visible fields. Preference stored in browser local storage.
 - **Pinned quick actions:** per-browser preference in local storage.
-- **Copy SSH command:** copies `serverctl connect ALIAS`, as today, so the
+- **Copy SSH command:** copies `hoploom connect ALIAS`, as today, so the
   vault and host-key policy stay in the path.
 - **Duplicate host:** existing `GET` + `POST /api/v1/hosts` with a new alias.
 - Keyboard navigation and grouping (Route / Tag / None).

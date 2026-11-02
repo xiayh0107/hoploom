@@ -85,7 +85,7 @@ it('explains an empty inventory instead of showing an empty table', async () => 
   tunnels = [];
   render(<PortsPage hosts={hosts}/>);
   expect(await screen.findByText('No saved forwards')).toBeTruthy();
-  expect(screen.getByText(/serverctl tunnel add/)).toBeTruthy();
+  expect(screen.getByText(/hoploom tunnel add/)).toBeTruthy();
 });
 
 it('keeps the table usable when the host behind a forward is unknown', async () => {

@@ -4518,7 +4518,7 @@
   },
   "info": {
     "description": "Loopback-only API. Exchange the private single-use launch URL for an HttpOnly session cookie, then read /api/v1/runtime for the session CSRF token. Every mutation and transfer requires the X-CSRF-Token header. Secret reveal additionally requires credential-specific reauthentication.",
-    "title": "SSH Server Manager Local API",
+    "title": "Hoploom Local API",
     "version": "1"
   },
   "openapi": "3.1.0",

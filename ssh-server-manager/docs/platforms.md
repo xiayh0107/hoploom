@@ -5,14 +5,14 @@ CI runs the full test suite on macOS, Ubuntu, and Windows on every push.
 ## macOS
 
 - **Vault**: Keychain, no setup needed. The first secret access may show a
-  Keychain permission dialog — click "Always Allow" for your Python/serverctl.
+  Keychain permission dialog — click "Always Allow" for your Python/hoploom.
 - **Passkey reveal**: Touch ID via Safari/Chrome WebAuthn.
 - **OpenSSH**: preinstalled (`/usr/bin/ssh`).
 - Connection reuse (`--reuse`) fully supported.
 - **Tunnels, mosh, and session transcripts**: all available. A tunnel keeps its
   liveness marker under the runtime directory (`/tmp/ssm-<uid>`), which must stay
   short: OpenSSH rejects a `ControlPath` of 104 characters or more, and
-  `serverctl` names `SSM_RUNTIME_DIR` if an override makes it too deep.
+  `hoploom` names `SSM_RUNTIME_DIR` if an override makes it too deep.
 
 ## Linux
 
@@ -22,7 +22,7 @@ CI runs the full test suite on macOS, Ubuntu, and Windows on every push.
   - Anything else: KeePassXC with *Enable Secret Service integration*
   The collection must be **unlocked**; normally your desktop login unlocks it.
 - **Headless / SSH-only servers**: there is no unlocked Secret Service by
-  default, so `serverctl doctor` will fail the vault check. Options:
+  default, so `hoploom doctor` will fail the vault check. Options:
   - Run `gnome-keyring-daemon` unlocked in your session
     (e.g. `dbus-run-session` + `gnome-keyring-daemon --unlock`)
   - Use only `agent`-kind credentials (ssh-agent / key files without stored
@@ -41,13 +41,13 @@ CI runs the full test suite on macOS, Ubuntu, and Windows on every push.
 
 - **Vault**: Credential Locker (Windows Credential Manager), no setup.
 - **OpenSSH**: install the optional *OpenSSH Client* feature or
-  `winget install Microsoft.OpenSSH.Beta`; `serverctl doctor` verifies it.
+  `winget install Microsoft.OpenSSH.Beta`; `hoploom doctor` verifies it.
 - **AskPass**: password/passphrase injection uses the
   `ssh-server-manager-askpass.exe` console script installed next to your
   Python — present automatically under pipx/uv or after
   `scripts\bootstrap.cmd`.
 - **Connection reuse (`--reuse`)**: not available — Windows OpenSSH lacks
-  ControlMaster Unix-socket support. `serverctl` prints a warning and each
+  ControlMaster Unix-socket support. `hoploom` prints a warning and each
   `exec` authenticates independently (vault auth is non-interactive, so
   this costs latency, not typing).
 - **Passkey reveal**: Windows Hello via Edge/Chrome.
@@ -58,12 +58,12 @@ CI runs the full test suite on macOS, Ubuntu, and Windows on every push.
 - **Session transcripts (`connect --log`)**: not available — there is no pty in
   the standard library on Windows, and `--log` refuses rather than recording
   nothing.
-- Use `scripts\serverctl.cmd` from a source checkout; plain `serverctl`
+- Use `scripts\hoploom.cmd` from a source checkout; plain `hoploom`
   after pipx/uv install.
 
 ## Data locations
 
-`serverctl doctor` prints the effective paths. Defaults:
+`hoploom doctor` prints the effective paths. Defaults:
 
 | | Database | Managed config |
 |---|---|---|

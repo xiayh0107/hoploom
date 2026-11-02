@@ -337,7 +337,7 @@ class Database:
                 # Port-forwarding profiles store the parsed halves of an -L/-R/-D
                 # spelling rather than the raw string, so a stored profile cannot
                 # carry shell syntax into the command that implements it. The label
-                # is unique database-wide: "serverctl tunnel open db1-local" names
+                # is unique database-wide: "hoploom tunnel open db1-local" names
                 # one tunnel without also naming a host.
                 self._execute_schema(connection, """
                     CREATE TABLE IF NOT EXISTS server_tunnels (

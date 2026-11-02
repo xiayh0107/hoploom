@@ -1,5 +1,67 @@
 # Changelog
 
+## Unreleased
+
+- Rename the product, distribution, primary CLI, Agent Skill and MCP identity to
+  **Hoploom**. `hoploom` is the canonical command; `serverctl` remains a silent
+  compatibility entry point with the same arguments, exit codes and JSON output.
+  The existing data directories, OS-vault service, environment variables, export
+  format, Python namespace and source subtree remain compatible.
+- Migrate the one-line installer to the `hoploom` Skill and command names, reuse
+  existing `servers-connect` checkouts, create the command directory when missing,
+  and preserve unrelated files/links. Replace only legacy Skill links pointing
+  to the same installation. Windows gains command launchers in
+  `%LOCALAPPDATA%\hoploom\bin`. Diagnostics recognize both old and new Skill links.
+- Prepare the Hoploom Homebrew formula and rename mapping. Document explicit
+  package-manager migration and GitHub/PyPI publication steps in
+  [the migration guide](docs/migration.md). Upgrade verification uninstalls the
+  old distribution before installing Hoploom, preserving existing user state.
+
+- Add `hoploom credential rotate ALIAS` for a host whose login password is
+  changing, so a new password is never saved before the server accepts it
+  (issue #3). hoploom does not change the password on the server — the human
+  does, with the account's own tools, because a scripted `passwd` dialogue
+  cannot be made reliable. The command takes the new password at a hidden
+  prompt and holds it in memory only, waits while the server-side change is
+  made, then proves a fresh password-only login through the isolated credential
+  probe (no agent, no key files, no shared connection, strict host-key
+  checking, no remote session). Only then does it write the vault. A rejected
+  password saves nothing and is followed by one check of the saved password, so
+  the message says whether the server still has the old one; Enter re-checks
+  and Ctrl-C stops with the vault exactly as it was. A credential that other
+  hosts share is never overwritten: they keep the old password and the rotated
+  host moves to a new credential, `LABEL (ALIAS)` or `--new-label`. The
+  candidate is offered to the target hop only, so a jump host that shares the
+  credential is still sent the saved password. Each check is audited as
+  `password_rotate` (host, label, outcome; never a value), and the Audit page
+  names it. Without a terminal, or with a `--timeout` outside 1–120, the command
+  exits 2 before any prompt. A jump host that rejects its own saved credential
+  is named as such instead of being reported as the target, and after a
+  rejection another attempt cannot fix (both passwords refused, or a jump
+  refusing) the command stops instead of offering a retry that would count
+  against the account's lockout rules. The plan shown before the wait is
+  re-checked under the credential lock, `hoploom import` now takes the same
+  lock when it binds a credential, and Ctrl-C during the save is deferred until
+  the vault and the message agree. If the save itself fails after the server
+  accepted the password, the error says the server already has it.
+- Publish the Homebrew tap: `brew install xiayh0107/tap/hoploom`
+  ([xiayh0107/homebrew-tap](https://github.com/xiayh0107/homebrew-tap)), built by
+  `brew test-bot` on macOS and Linux. `scripts/prepare_packaging` now refuses an
+  sdist whose hash is not the one PyPI serves, because `publish.yml` builds its
+  own sdist and a local `dist/` file therefore never matches what Homebrew
+  downloads (`--offline` skips the check). It fills in PyPI's own file URL,
+  which `brew audit` requires. The formula's test no longer runs `doctor`, which
+  fails without an OS keychain, and the formula declares the toolchain its
+  from-source resources need (Rust, pkgconf, OpenSSL, libffi, libyaml).
+- `hoploom import` now says what to do about a credential label that does not
+  exist on this machine — create it before `--apply`, or attach it afterwards
+  with `server edit` — and the FAQ's "move to a new machine" answer describes
+  the export/import flow instead of copying the database (issue #15). Secrets
+  still never leave the OS keychain.
+- Say plainly that `credential edit --replace-secret`, and the Web UI's
+  **Replace** password field, change only the copy saved on this machine. Both
+  now point at `credential rotate` for a real server-side change.
+
 ## 0.10.1 — 2026-10-22
 
 No runtime change: the installed wheel behaves exactly as 0.10.0 does. This
@@ -27,53 +89,6 @@ has, and so that the suite passes on every platform CI covers.
   two writes for the cache to invalidate, which a coarse-timestamp filesystem or
   a CI runner that writes both within one tick defeats. The test now sets a newer
   mtime explicitly.
-
-## Unreleased
-
-- Add `serverctl credential rotate ALIAS` for a host whose login password is
-  changing, so a new password is never saved before the server accepts it
-  (issue #3). serverctl does not change the password on the server — the human
-  does, with the account's own tools, because a scripted `passwd` dialogue
-  cannot be made reliable. The command takes the new password at a hidden
-  prompt and holds it in memory only, waits while the server-side change is
-  made, then proves a fresh password-only login through the isolated credential
-  probe (no agent, no key files, no shared connection, strict host-key
-  checking, no remote session). Only then does it write the vault. A rejected
-  password saves nothing and is followed by one check of the saved password, so
-  the message says whether the server still has the old one; Enter re-checks
-  and Ctrl-C stops with the vault exactly as it was. A credential that other
-  hosts share is never overwritten: they keep the old password and the rotated
-  host moves to a new credential, `LABEL (ALIAS)` or `--new-label`. The
-  candidate is offered to the target hop only, so a jump host that shares the
-  credential is still sent the saved password. Each check is audited as
-  `password_rotate` (host, label, outcome; never a value), and the Audit page
-  names it. Without a terminal, or with a `--timeout` outside 1–120, the command
-  exits 2 before any prompt. A jump host that rejects its own saved credential
-  is named as such instead of being reported as the target, and after a
-  rejection another attempt cannot fix (both passwords refused, or a jump
-  refusing) the command stops instead of offering a retry that would count
-  against the account's lockout rules. The plan shown before the wait is
-  re-checked under the credential lock, `serverctl import` now takes the same
-  lock when it binds a credential, and Ctrl-C during the save is deferred until
-  the vault and the message agree. If the save itself fails after the server
-  accepted the password, the error says the server already has it.
-- Publish the Homebrew tap: `brew install xiayh0107/tap/ssh-server-manager`
-  ([xiayh0107/homebrew-tap](https://github.com/xiayh0107/homebrew-tap)), built by
-  `brew test-bot` on macOS and Linux. `scripts/prepare_packaging` now refuses an
-  sdist whose hash is not the one PyPI serves, because `publish.yml` builds its
-  own sdist and a local `dist/` file therefore never matches what Homebrew
-  downloads (`--offline` skips the check). It fills in PyPI's own file URL,
-  which `brew audit` requires. The formula's test no longer runs `doctor`, which
-  fails without an OS keychain, and the formula declares the toolchain its
-  from-source resources need (Rust, pkgconf, OpenSSL, libffi, libyaml).
-- `serverctl import` now says what to do about a credential label that does not
-  exist on this machine — create it before `--apply`, or attach it afterwards
-  with `server edit` — and the FAQ's "move to a new machine" answer describes
-  the export/import flow instead of copying the database (issue #15). Secrets
-  still never leave the OS keychain.
-- Say plainly that `credential edit --replace-secret`, and the Web UI's
-  **Replace** password field, change only the copy saved on this machine. Both
-  now point at `credential rotate` for a real server-side change.
 
 ## 0.10.0 — 2026-10-22
 

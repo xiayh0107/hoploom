@@ -29,7 +29,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 WEBSITE = REPO / "website"
 PKG = REPO / "ssh-server-manager"
-GITHUB = "https://github.com/xiayh0107/servers-connect"
+GITHUB = "https://github.com/xiayh0107/hoploom"
 BLOB = f"{GITHUB}/blob/main"
 
 
@@ -73,6 +73,8 @@ SECTIONS: list[tuple[str, list[Page]]] = [
                  "Ten minutes from install to a managed fleet."),
             Page(PKG / "docs/installation.md", "installation", "Installation",
                  "Install with pipx, pip, or from a source checkout."),
+            Page(PKG / "docs/migration.md", "migration", "Upgrade to Hoploom",
+                 "Keep existing hosts, credentials and scripts when upgrading."),
             Page(PKG / "docs/platforms.md", "platforms", "Platforms",
                  "What the vault and OpenSSH integration look like per OS."),
         ],
@@ -81,7 +83,7 @@ SECTIONS: list[tuple[str, list[Page]]] = [
         "Guides",
         [
             Page(PKG / "docs/cli.md", "cli", "CLI",
-                 "serverctl commands for hosts, credentials, and sessions."),
+                 "hoploom commands for hosts, credentials, and sessions."),
             Page(PKG / "docs/web-ui.md", "web-ui", "Web UI",
                  "The loopback management UI and its reveal protections."),
             Page(PKG / "docs/backend.md", "backend", "Backend API",
@@ -102,7 +104,7 @@ SECTIONS: list[tuple[str, list[Page]]] = [
             Page(PKG / "references/troubleshooting.md", "troubleshooting", "Troubleshooting",
                  "Diagnosing connection, vault, and config failures."),
             Page(PKG / "references/security.md", "agent-security", "Agent safety rules",
-                 "The rules an agent must follow when driving serverctl."),
+                 "The rules an agent must follow when driving hoploom."),
         ],
     ),
     (
@@ -269,7 +271,7 @@ def shell(*, title: str, description: str, current: str | None, main: str) -> st
     <nav class="nav">
       <a class="brand" href="../">
         <span class="brand-icon">&gt;_</span>
-        <span>SSH Server Manager</span>
+        <span>Hoploom</span>
       </a>
       <div class="nav-links">
         <a href="index.html">Docs</a>
@@ -291,7 +293,7 @@ def shell(*, title: str, description: str, current: str | None, main: str) -> st
       <a href="{GITHUB}">GitHub</a>
       <a href="{BLOB}/LICENSE">License</a>
     </div>
-    <p>© 2026 SSH Server Manager · v{VERSION} · MIT</p>
+    <p>© 2026 Hoploom · v{VERSION} · MIT</p>
   </div>
 </footer>
 </body>
@@ -310,7 +312,7 @@ def doc_page(page: Page) -> str:
 </main>
 {on_this_page(page)}"""
     return shell(
-        title=f"{page.title} — SSH Server Manager docs",
+        title=f"{page.title} — Hoploom docs",
         description=page.summary,
         current=page.slug,
         main=main,
@@ -333,7 +335,7 @@ def index_page() -> str:
     main = f"""<main class="doc-main">
   <div class="doc-hero">
     <p class="eyebrow">Documentation</p>
-    <h1>SSH Server Manager</h1>
+    <h1>Hoploom</h1>
     <p>A local-first SSH host and credential manager for people and their AI agents.
        Credentials live in the OS keychain; agents get connection context, never secrets.</p>
     <p class="doc-hero-actions">
@@ -344,8 +346,8 @@ def index_page() -> str:
   {"".join(cards)}
 </main>"""
     return shell(
-        title="Documentation — SSH Server Manager",
-        description="Guides, CLI reference, and the security model for SSH Server Manager.",
+        title="Documentation — Hoploom",
+        description="Guides, CLI reference, and the security model for Hoploom.",
         current=None,
         main=main,
     )
