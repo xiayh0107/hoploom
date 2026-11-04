@@ -246,11 +246,11 @@ def test_file_transfers_share_limits_and_cleanup_with_legacy(backend, monkeypatc
     headers = login(client)
     monkeypatch.setattr(webapp, "MAX_WEB_TRANSFER_BYTES", 8)
     size = 4
-    def download(_self, identifier, remote_path, target, *, max_bytes=None):
+    def download(_self, identifier, remote_path, target, *, max_bytes=None, **_live):
         assert max_bytes == 8
         target.write_bytes(b"x" * size)
         return {"bytes": size}
-    def upload(_self, identifier, source, remote_path, *, overwrite=True):
+    def upload(_self, identifier, source, remote_path, *, overwrite=True, **_live):
         assert overwrite is False
         return {"alias": "box", "direction": "upload", "remote_path": remote_path, "local_path": str(source), "bytes": source.stat().st_size, "latency_ms": 1}
     monkeypatch.setattr(SSHRunner, "download", download)
@@ -505,7 +505,7 @@ def test_file_filter_metadata_and_explicit_overwrite_contract(backend, monkeypat
         observed.append((name_filter, enrich))
         return {"alias": "box", "path": "/srv", "parent": "/", "entries": [{"name": "file", "path": "/srv/file", "type": "symlink", "size": 4, "modified": "Oct 15 14:00", "permissions": "lrwxrwxrwx", "owner": "user", "group": "staff", "hidden": False, "uid": 1000, "gid": 100, "link_target": "release", "modified_at": "2026-10-15T14:00:00Z"}], "total": 6000, "matching_total": 1, "truncated": False, "unparsed": 0, "latency_ms": 1, "connection_checked_at": "2026-10-15T00:00:00Z"}
 
-    def upload(identifier, source, path, *, overwrite):
+    def upload(identifier, source, path, *, overwrite, **_live):
         observed.append(overwrite)
         return {"alias": "box", "direction": "upload", "remote_path": path, "bytes": source.stat().st_size, "latency_ms": 1}
 

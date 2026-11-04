@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- Add an app-wide **Transfers** dock to the web UI. Uploads and downloads keep
+  running across file tabs, hosts and pages; two run at once and eight wait,
+  each with its own cancel. Rows show byte progress only when bytes are counted,
+  name the host-side phase, and say when a cancelled upload may still be
+  published. Upload conflicts are settled in the dock (new name or explicit
+  overwrite) instead of a modal, failures are retried only on request, and
+  records never enter the URL, history or storage and are cleared with the
+  session. A folder that receives an upload refreshes when a tab shows it.
+
+- Make cancelling a web transfer stop it on the host. A cancelled or abandoned
+  request now terminates its own sftp process, never the process group, so a
+  shared ControlMaster and its ProxyJump helper keep serving other requests. The
+  staged copy is removed and the server slot is free at once, instead of after
+  the host finished. Overwrites are staged beside the target and swapped in with
+  SFTP's atomic `posix-rename`, so a cancelled or failed replacement leaves the
+  original intact. A symlink target, or a server without that extension, still
+  gets a direct write, which cannot be cancelled. While the host works, the
+  **Transfers** dock shows real progress: the staged download's size, or how far
+  sftp has read an upload (Linux and macOS; Windows shows no percentage). It
+  also shows a transfer waiting for a slot held by another tab. Clients name a
+  request with `?transfer_id=` and read `GET /api/v1/transfers/{id}`, scoped to
+  their browser session.
+
+- Bound browser file transfers on the server. Uploads are authenticated, take a
+  transfer slot and are size-checked before any of the body is read, then stream
+  once into the private runtime directory instead of being spooled to the system
+  temp directory first; a body without a length stops at the limit. Downloads
+  stream in 64 KiB chunks with `Content-Length` instead of loading the whole file
+  into memory, and their staging is removed however the response ends, including
+  client disconnects. Two transfers run at once and eight wait; beyond that the
+  transfer routes answer `503` with `error_code: "busy"` and `Retry-After`.
+
 - Improve dsh-hoploom onboarding in plugin 0.2.0: automatically prepare the
   bundled backend and private Python runtime when no usable Hoploom exists.
   Add a native sidebar panel with progress, retry/cancel and the full existing UI

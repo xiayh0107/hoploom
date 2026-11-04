@@ -10,10 +10,11 @@ import stat
 import subprocess
 import sys
 import sysconfig
+import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from .askpass import HOST_KEY_CONFIRM_ENV
 from .db import Database, NotFoundError, utc_now
@@ -29,6 +30,7 @@ from .remote_files import (
     run_metadata_command, validate_web_file_path,
 )
 from .remote_listing import ListingRoute
+from .transfer_control import Cancelled, DeadlineExceeded, read_position, run_stoppable
 
 
 class SSHError(RuntimeError):
@@ -68,6 +70,21 @@ MAX_TREE_ENTRIES = 4000
 # Transfers get a wider wall-clock margin than the connect timeout: a large
 # file is slow for reasons that have nothing to do with reachability.
 TRANSFER_TIMEOUT_GRACE = 30
+RENAME_FAILURE_RE = re.compile(r"(?i)couldn't rename|remote rename")
+# Told when an sftp transfer starts: its expected size (None when unknown) and
+# a function returning the bytes moved so far (None when it cannot be known).
+TransferMeter = Callable[[int | None, Callable[[], int | None]], None]
+
+
+def _canceled() -> FileOperationError:
+    return FileOperationError("transfer canceled", "canceled")
+
+
+def _local_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except FileNotFoundError:
+        return 0
 # Fields a metadata probe may contribute to an SFTP-listed entry. Size and type
 # stay SFTP's because transfers are authorized from the listing, not the probe.
 ENRICHABLE_FIELDS = ("uid", "gid", "modified_at", "link_target", "owner", "group")
@@ -963,17 +980,34 @@ class SSHRunner:
         reuse: int,
         stream: bool,
         batch_mode: bool = False,
+        cancel: threading.Event | None = None,
+        on_start: Callable[[subprocess.Popen], None] | None = None,
     ) -> tuple[int, str, str]:
         """Run one sftp transfer, either streaming to the terminal or captured.
 
         Streaming keeps sftp's own progress meter, which is the only progress
-        signal available without reimplementing the protocol.
+        signal available without reimplementing the protocol. A captured run
+        with `cancel` stops sftp once the event is set.
         """
         command = self._sftp_command(server, timeout=timeout, reuse=reuse, quiet=not stream)
         if batch_mode:
             # Abort before publishing if put failed; explicit BatchMode=no in
             # _sftp_command still permits managed AskPass authentication.
             command[-1:-1] = ["-b", "-"]
+        if cancel is not None and not stream:
+            try:
+                return run_stoppable(
+                    literal_config_args(command), input_text=batch, env=self._environment(server),
+                    timeout=timeout + TRANSFER_TIMEOUT_GRACE, cancel=cancel, on_start=on_start,
+                )
+            except Cancelled as exc:
+                raise _canceled() from exc
+            except DeadlineExceeded as exc:
+                raise FileOperationError(
+                    f"transfer exceeded {timeout + TRANSFER_TIMEOUT_GRACE} seconds", "timeout"
+                ) from exc
+            except OSError as exc:
+                raise FileOperationError("sftp is unavailable; install the OpenSSH client and retry", "unreachable") from exc
         try:
             result = subprocess.run(
                 literal_config_args(command),
@@ -1013,14 +1047,21 @@ class SSHRunner:
         reuse: int = 300,
         stream: bool = False,
         max_bytes: int | None = None,
+        cancel: threading.Event | None = None,
+        meter: TransferMeter | None = None,
     ) -> dict[str, Any]:
-        """Copy one remote file to a local path over SFTP."""
+        """Copy one remote file to a local path over SFTP.
+
+        With `cancel`, setting the event stops the transfer; `meter` learns the
+        expected size and how much has reached `local_path` so far.
+        """
         remote = validate_remote_path(remote_path)
         if remote == "~":
             raise ValidationError("remote source must name a file, not the home directory")
         destination = Path(local_path)
         server = self.database.get_server(identifier)
         start = time.monotonic()
+        expected = None
         if max_bytes is not None:
             if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes < 0:
                 raise ValidationError("download limit must be a nonnegative integer")
@@ -1029,12 +1070,20 @@ class SSHRunner:
                 raise FileOperationError("remote source must be a regular file", "permission_denied")
             if metadata["size"] > max_bytes:
                 raise FileOperationError("file is larger than the web transfer limit; use hoploom get instead", "too_large")
+            expected = metadata["size"]
+        if cancel is not None and cancel.is_set():
+            raise _canceled()
+        if meter is not None:
+            # sftp writes at request offsets, so the size counts bytes received
+            # (holes included) — progress only, never data to read early.
+            meter(expected, lambda: _local_size(destination))
         returncode, _stdout, stderr = self._run_transfer(
             server,
             batch=self._transfer_batch("get", remote, str(destination)),
             timeout=timeout,
             reuse=reuse,
             stream=stream,
+            cancel=cancel,
         )
         self._finish_transfer(returncode, stderr)
         latency = round((time.monotonic() - start) * 1000)
@@ -1064,8 +1113,15 @@ class SSHRunner:
         reuse: int = 300,
         stream: bool = False,
         overwrite: bool = True,
+        cancel: threading.Event | None = None,
+        meter: TransferMeter | None = None,
     ) -> dict[str, Any]:
-        """Copy one local file to a remote path over SFTP."""
+        """Copy one local file to a remote path over SFTP.
+
+        With `cancel`, setting the event stops the transfer without leaving a
+        partial file at `remote_path`; `meter` learns the size and how much of
+        the source sftp has sent so far.
+        """
         remote = validate_remote_path(remote_path)
         source = Path(local_path)
         if not source.is_file():
@@ -1073,6 +1129,17 @@ class SSHRunner:
         size = source.stat().st_size
         server = self.database.get_server(identifier)
         start = time.monotonic()
+        on_start = None if meter is None else (
+            lambda process: meter(size, lambda: read_position(process.pid, source))
+        )
+        result = lambda: {  # noqa: E731 - one shape for every upload path
+            "alias": server["alias"], "direction": "upload", "remote_path": remote,
+            "local_path": str(source), "bytes": size,
+            "latency_ms": round((time.monotonic() - start) * 1000),
+        }
+        if overwrite and cancel is not None:
+            self._replace_file(identifier, server, source, remote, timeout=timeout, reuse=reuse, cancel=cancel, on_start=on_start)
+            return result()
         if not overwrite:
             validate_web_file_path(remote)
             try:
@@ -1082,20 +1149,19 @@ class SSHRunner:
                     raise
             else:
                 raise FileOperationError("remote destination already exists; confirm overwrite before retrying", "exists", existing=existing)
-            temporary = posixpath.join(posixpath.dirname(remote), ".ssm-upload-" + uuid.uuid4().hex)
-            prefix = "@cd\n" if remote.startswith("~/") else ""
-            publication_target = remote[2:] if prefix else remote
-            publication_temp = temporary[2:] if prefix else temporary
+            prefix, publication_target, publication_temp = self._publication_names(remote)
             batch = prefix + "\n".join([
                 f"@put -p {self._sftp_path(str(source))} {self._sftp_path(publication_temp)}",
                 f"@ln {self._sftp_path(publication_temp)} {self._sftp_path(publication_target)}",
                 f"@rm {self._sftp_path(publication_temp)}", "",
             ])
             succeeded = False
+            if cancel is not None and cancel.is_set():
+                raise _canceled()
             try:
                 returncode, _stdout, stderr = self._run_transfer(
                     server, batch=batch, timeout=timeout, reuse=reuse,
-                    stream=False, batch_mode=True,
+                    stream=False, batch_mode=True, cancel=cancel, on_start=on_start,
                 )
                 try:
                     self._finish_transfer(returncode, stderr)
@@ -1110,18 +1176,8 @@ class SSHRunner:
                 succeeded = True
             finally:
                 if not succeeded:
-                    # Batch aborts before rm on failure, so cleanup is a second
-                    # operation over the shared master, never a target removal.
-                    cleanup = prefix + f"@rm {self._sftp_path(publication_temp)}\n@quit\n"
-                    try:
-                        self._run_transfer(server, batch=cleanup, timeout=min(timeout, 12), reuse=reuse, stream=False)
-                    except FileOperationError:
-                        pass
-            return {
-                "alias": server["alias"], "direction": "upload", "remote_path": remote,
-                "local_path": str(source), "bytes": size,
-                "latency_ms": round((time.monotonic() - start) * 1000),
-            }
+                    self._remove_staged(server, prefix, publication_temp, timeout=timeout, reuse=reuse)
+            return result()
         returncode, _stdout, stderr = self._run_transfer(
             server,
             batch=self._transfer_batch("put", str(source), remote),
@@ -1130,14 +1186,74 @@ class SSHRunner:
             stream=stream,
         )
         self._finish_transfer(returncode, stderr)
-        return {
-            "alias": server["alias"],
-            "direction": "upload",
-            "remote_path": remote,
-            "local_path": str(source),
-            "bytes": size,
-            "latency_ms": round((time.monotonic() - start) * 1000),
-        }
+        return result()
+
+    def _publication_names(self, remote: str) -> tuple[str, str, str]:
+        """Batch prefix, target and a fresh temporary name beside it, in batch form."""
+        temporary = posixpath.join(posixpath.dirname(remote), ".ssm-upload-" + uuid.uuid4().hex)
+        prefix = "@cd\n" if remote.startswith("~/") else ""
+        return prefix, remote[2:] if prefix else remote, temporary[2:] if prefix else temporary
+
+    def _remove_staged(self, server: dict[str, Any], prefix: str, temporary: str, *, timeout: int, reuse: int) -> None:
+        # Batch aborts before rm on failure, so cleanup is a second operation
+        # over the shared master, never a target removal. It takes no cancel:
+        # a cancelled upload must still clean up after itself.
+        cleanup = prefix + f"@rm {self._sftp_path(temporary)}\n@quit\n"
+        try:
+            self._run_transfer(server, batch=cleanup, timeout=min(timeout, 12), reuse=reuse, stream=False)
+        except FileOperationError:
+            pass
+
+    def _replace_file(
+        self, identifier: str, server: dict[str, Any], source: Path, remote: str, *,
+        timeout: int, reuse: int, cancel: threading.Event,
+        on_start: Callable[[subprocess.Popen], None] | None,
+    ) -> None:
+        """Explicit overwrite that a cancel or failure cannot leave half-written.
+
+        The file is staged beside the target and renamed over it (OpenSSH uses
+        posix-rename). A symlink target keeps the plain put that writes through
+        it, and so does a server whose rename refuses to replace a file; that
+        plain put then runs to completion even if cancelled.
+        """
+        try:
+            existing = self.stat_file(identifier, remote, timeout=min(timeout, 12), reuse=reuse, follow_symlinks=False)
+        except FileOperationError as exc:
+            if exc.error_code != "not_found":
+                raise
+            existing = None
+        if cancel.is_set():
+            raise _canceled()
+        if existing is None or existing["type"] == "file":
+            prefix, target, temporary = self._publication_names(remote)
+            batch = prefix + "\n".join([
+                f"@put -p {self._sftp_path(str(source))} {self._sftp_path(temporary)}",
+                f"@rename {self._sftp_path(temporary)} {self._sftp_path(target)}", "",
+            ])
+            published = False
+            try:
+                returncode, _stdout, stderr = self._run_transfer(
+                    server, batch=batch, timeout=timeout, reuse=reuse,
+                    stream=False, batch_mode=True, cancel=cancel, on_start=on_start,
+                )
+                try:
+                    self._finish_transfer(returncode, stderr)
+                    published = True
+                    return
+                except FileOperationError:
+                    # OpenSSH 10 says 'remote rename "a" to "b": …'; older
+                    # clients 'Couldn't rename file "a" to "b": …'.
+                    if not RENAME_FAILURE_RE.search(stderr):
+                        raise
+            finally:
+                if not published:
+                    self._remove_staged(server, prefix, temporary, timeout=timeout, reuse=reuse)
+        # A never-set event keeps progress reporting without allowing a stop.
+        returncode, _stdout, stderr = self._run_transfer(
+            server, batch=self._transfer_batch("put", str(source), remote), timeout=timeout,
+            reuse=reuse, stream=False, cancel=threading.Event(), on_start=on_start,
+        )
+        self._finish_transfer(returncode, stderr)
 
     # --- recursive trees ------------------------------------------------------------
     #

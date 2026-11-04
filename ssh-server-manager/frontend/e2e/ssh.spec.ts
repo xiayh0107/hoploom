@@ -27,14 +27,16 @@ async function stopFixture(child: ChildProcessWithoutNullStreams) {
   try {await Promise.race([exited, deadline]);} finally {if (timer) clearTimeout(timer);}
 }
 
-const test = base.extend<{loopback: Loopback}>({
-  loopback: async ({page}, use) => {
+const test = base.extend<{loopback: Loopback; ioDelayMs: number}>({
+  // Slows the fixture's SFTP server so a transfer lasts long enough to watch and cancel.
+  ioDelayMs: [0, {option: true}],
+  loopback: async ({page, ioDelayMs}, use) => {
     const directory = await mkdtemp(join(tmpdir(), 'ssm-browser-'));
     const launchFile = join(directory, 'launch-url'), readyFile = join(directory, 'ready.json');
     const project = resolve(process.cwd(), '..');
     const python = process.env.SSM_E2E_PYTHON || join(project, '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
     const child = spawn(python, [join(project, 'tests/manual/modern_fixture.py'), '--url-file', launchFile,
-      '--ready-file', readyFile, '--stdin-stop'], {cwd: project, stdio: ['pipe', 'pipe', 'pipe']});
+      '--ready-file', readyFile, '--stdin-stop', ...(ioDelayMs ? ['--io-delay-ms', String(ioDelayMs)] : [])], {cwd: project, stdio: ['pipe', 'pipe', 'pipe']});
     let startupError: Error | undefined;
     child.on('error', error => {startupError = error;});
     // Drain output; never attach login URLs, CSRF values or request bodies to artifacts.
@@ -146,18 +148,17 @@ test('real routed SFTP browse, upload conflict, explicit overwrite and download'
   await page.getByRole('button', {name: /^Hidden files/}).click();
   await expect(table).toContainText('.hidden.txt');
   await page.getByLabel('Upload file').setInputFiles({name: 'existing.txt', mimeType: 'text/plain', buffer: Buffer.from('explicit browser replacement\n')});
-  const conflict = page.getByRole('dialog', {name: 'File already exists', exact: true});
-  await expect(conflict).toBeVisible();
-  await expect(conflict).toContainText('multi-hop');
-  await expect(conflict).toContainText('/existing.txt');
-  await conflict.getByRole('button', {name: 'Cancel', exact: true}).click();
-  await expect(conflict).not.toBeVisible();
+  const transfers = page.getByRole('region', {name: 'Transfers', exact: true});
+  const pending = () => transfers.getByRole('listitem').filter({hasText: 'existing.txt'}).filter({hasText: 'Already exists'});
+  await expect(pending()).toBeVisible();
+  await expect(pending()).toContainText('multi-hop');
+  await pending().getByRole('button', {name: 'Cancel upload existing.txt', exact: true}).click();
+  await expect(pending()).toHaveCount(0);
   expect(await downloadText(page, 'existing.txt')).toBe('original fixture content\n');
   await page.getByLabel('Upload file').setInputFiles({name: 'existing.txt', mimeType: 'text/plain', buffer: Buffer.from('explicit browser replacement\n')});
-  await expect(conflict).toBeVisible();
-  await conflict.getByRole('button', {name: 'Overwrite this file', exact: true}).click();
-  await expect(conflict).not.toBeVisible();
-  await expect(page.getByRole('status').filter({hasText: 'Uploaded existing.txt'})).toBeVisible();
+  await expect(pending()).toBeVisible();
+  await pending().getByRole('button', {name: 'Overwrite this file', exact: true}).click();
+  await expect(transfers.getByText(/^Uploaded · /)).toBeVisible();
   expect(await downloadText(page, 'existing.txt')).toBe('explicit browser replacement\n');
   await page.getByLabel('Upload file').setInputFiles({name: 'new-browser.txt', mimeType: 'text/plain', buffer: Buffer.from('atomic no-overwrite upload\n')});
   await expect(table).toContainText('new-browser.txt');
@@ -215,3 +216,61 @@ test('large directory full-name filtering, transfer caps, empty folder and nulla
   await expect(page.locator('main')).not.toContainText('Invalid Date');
   await expect(page.locator('main')).not.toContainText('undefined');
 });
+
+test.describe('slow host transfers', () => {
+  // About 12 s per 24 MiB transfer: far longer than any wait these tests allow.
+  test.use({ioDelayMs: 15});
+
+  test('a cancelled overwrite reports host progress, stops sftp and keeps the original', async ({page, loopback}) => {
+    await files(page, loopback, 'direct');
+    const table = page.getByRole('table', {name: 'Remote files'});
+    const transfers = page.getByRole('region', {name: 'Transfers', exact: true});
+    await page.getByLabel('Upload file').setInputFiles({name: 'existing.txt', mimeType: 'application/octet-stream', buffer: Buffer.alloc(24 * 1024 * 1024, 7)});
+    const row = transfers.getByRole('listitem').filter({hasText: 'existing.txt'});
+    await row.getByRole('button', {name: 'Overwrite this file', exact: true}).click();
+    // The browser hands the file over at once; the rest is sftp on the host, counted in real bytes.
+    await expect(row.getByText(/^Writing on host · [1-9]\d?%$/)).toBeVisible({timeout: 20_000});
+    await row.getByRole('button', {name: 'Cancel upload existing.txt', exact: true}).click();
+    await expect(row.getByText('Canceled', {exact: true})).toBeVisible();
+    // sftp stops, so its staged copy is removed within seconds; an sftp left
+    // running would keep writing it for the ~12 s the whole file takes.
+    await page.getByRole('button', {name: /^Hidden files/}).click();
+    const settled = async () => {
+      await page.getByRole('button', {name: 'Refresh', exact: true}).click();
+      await expect(table).toContainText('existing.txt');
+      await expect(table).not.toContainText('.ssm-upload-');
+    };
+    await expect(settled).toPass({timeout: 5_000});
+    await page.waitForTimeout(3_000);
+    await settled();
+    expect(await downloadText(page, 'existing.txt')).toBe('original fixture content\n');
+  });
+
+  test('a cancelled download frees its server slot at once', async ({page, loopback}) => {
+    await files(page, loopback, 'direct');
+    const transfers = page.getByRole('region', {name: 'Transfers', exact: true});
+    const saved: string[] = [];
+    page.on('download', download => saved.push(download.suggestedFilename()));
+    await page.getByRole('button', {name: 'Download large-download.bin', exact: true}).click();
+    const first = transfers.getByRole('listitem').filter({hasText: 'large-download.bin'});
+    await expect(first.getByText(/^Reading on host · \d+%$/)).toBeVisible({timeout: 20_000});
+    await first.getByRole('button', {name: 'Cancel download large-download.bin', exact: true}).click();
+    await expect(first.getByText('Canceled', {exact: true})).toBeVisible();
+    // Another window holds one slot for the whole test; the next download
+    // gets the slot the cancelled one released, without waiting for it.
+    const other = await page.context().newPage();
+    await files(other, loopback, 'direct');
+    await other.getByRole('button', {name: 'Download large-download.bin', exact: true}).click();
+    const elsewhere = other.getByRole('region', {name: 'Transfers', exact: true}).getByRole('listitem').filter({hasText: 'large-download.bin'});
+    await expect(elsewhere.getByText(/^Reading on host · \d+%$/)).toBeVisible({timeout: 20_000});
+    await page.getByRole('button', {name: 'Clear finished transfers', exact: true}).click();
+    await page.getByRole('button', {name: 'Download large-download.bin', exact: true}).click();
+    const again = transfers.getByRole('listitem').filter({hasText: 'large-download.bin'});
+    // Had the cancelled sftp kept its slot, this would wait for that transfer to end.
+    await expect(again.getByText(/^Reading on host · \d+%$/)).toBeVisible({timeout: 5_000});
+    await again.getByRole('button', {name: 'Cancel download large-download.bin', exact: true}).click();
+    await elsewhere.getByRole('button', {name: 'Cancel download large-download.bin', exact: true}).click();
+    expect(saved).toEqual([]);
+  });
+});
+

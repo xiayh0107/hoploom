@@ -753,8 +753,16 @@ class ErrorResponse(BaseModel):
     ok: Literal[False] = False
     error: str
     message: str
-    error_code: Literal["permission_denied", "not_found", "not_a_directory", "unreachable", "auth_failed", "timeout", "too_large", "exists", "unsupported"] | None = None
+    error_code: Literal["permission_denied", "not_found", "not_a_directory", "unreachable", "auth_failed", "timeout", "too_large", "exists", "unsupported", "busy", "canceled"] | None = None
     existing: FileConflictEntry | None = None
+
+
+class TransferProgress(BaseModel):
+    """Host-side work of a running browser transfer. `bytes` counts what sftp
+    has moved so far and is null when the platform cannot tell."""
+    phase: Literal["waiting", "receiving", "host"]
+    bytes: int | None
+    total: int | None
 
 
 class ImportRequest(RequestModel):

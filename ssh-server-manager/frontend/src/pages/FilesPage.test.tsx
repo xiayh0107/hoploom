@@ -1,11 +1,13 @@
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {api, ApiError, download} from '../api';
+import {api, ApiError, download, upload} from '../api';
+import TransferPanel from '../TransferPanel';
+import {resetTransfers} from '../transfers';
 import type {DirectoryEnrichment, DirectoryEntry, DirectoryListing, Host, RuntimeInfo, SavedPath} from '../types';
 import FilesPage, {clearFolderCache} from './FilesPage';
 
-vi.mock('../api', async importOriginal => ({...await importOriginal<typeof import('../api')>(), api: vi.fn(), download: vi.fn()}));
-const apiMock = vi.mocked(api), downloadMock = vi.mocked(download);
+vi.mock('../api', async importOriginal => ({...await importOriginal<typeof import('../api')>(), api: vi.fn(), download: vi.fn(), upload: vi.fn()}));
+const apiMock = vi.mocked(api), downloadMock = vi.mocked(download), uploadMock = vi.mocked(upload);
 const hosts: Host[] = ['alpha', 'beta'].map((alias, index) => ({
   id: index === 0 ? 'a/#' : 'b', alias, hostname: `${alias}.invalid`, username: 'deploy', port: 22,
   credential_id: null, credential_kind: null, credential_label: null, proxy_jumps: index ? ['bastion'] : [],
@@ -44,22 +46,31 @@ function mockBackend(files = listing(), paths: SavedPath[] = [], enrichment: Dir
   });
 }
 function deferred<T>() {let resolve!: (value: T) => void, reject!: (error: unknown) => void; const promise = new Promise<T>((yes, no) => {resolve = yes; reject = no;}); return {promise, resolve, reject};}
-async function ready(files = listing(), paths: SavedPath[] = [], props: Partial<React.ComponentProps<typeof FilesPage>> = {}) {
-  mockBackend(files, paths); render(<FilesPage hosts={hosts} runtime={runtime} {...props}/>); return await screen.findByRole('table', {name: 'Remote files'});
+// Transfers belong to the app, so their dock renders beside the page as in App.
+function show(props: Partial<React.ComponentProps<typeof FilesPage>> = {}) {
+  return render(<><FilesPage hosts={hosts} runtime={runtime} {...props}/><TransferPanel/></>);
 }
+async function ready(files = listing(), paths: SavedPath[] = [], props: Partial<React.ComponentProps<typeof FilesPage>> = {}) {
+  mockBackend(files, paths); show(props); return await screen.findByRole('table', {name: 'Remote files'});
+}
+const dock = () => screen.getByRole('region', {name: 'Transfers'});
 async function switchToBeta() {
   fireEvent.click(screen.getByRole('button', {name: 'Switch file host'}));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', {name: /beta/}));
   await screen.findByRole('heading', {name: 'beta'});
   await waitFor(() => expect(location.hash).not.toContain('files-switcher'));
 }
-const uploadCalls = () => apiMock.mock.calls.filter(([path]) => path.endsWith('/upload'));
+const uploadCalls = () => uploadMock.mock.calls;
+const uploadForm = (index: number) => uploadCalls()[index][1];
 // The precise-metadata probe shares the /files prefix; only the plain listing
 // request counts as a folder load.
 const listingCalls = () => apiMock.mock.calls.filter(([path]) => path.includes('/files') && !path.endsWith('/files/metadata'));
 // The folder cache is module state; a shared cache would leak a previous test's
 // listing into the next one and hide the very loading states these tests assert.
-beforeEach(() => {history.replaceState(null, '', '#/files'); clearFolderCache(); apiMock.mockReset(); downloadMock.mockReset();});
+beforeEach(() => {
+  history.replaceState(null, '', '#/files'); clearFolderCache(); resetTransfers();
+  apiMock.mockReset(); downloadMock.mockReset(); uploadMock.mockReset(); uploadMock.mockResolvedValue({bytes: 3});
+});
 afterEach(() => {vi.useRealTimers(); vi.unstubAllGlobals();});
 
 describe('Files page', () => {
@@ -287,41 +298,54 @@ describe('Files page', () => {
     expect(listingCalls()).toHaveLength(3);
   });
 
-  it('does not apply the folder deadline to an upload or replay the write', async () => {
-    vi.useFakeTimers(); mockBackend(); render(<FilesPage hosts={hosts} runtime={runtime}/>); await act(async () => {});
-    const pending = deferred<unknown>();
-    apiMock.mockImplementation(async path => path.endsWith('/upload') ? pending.promise : path.endsWith('/paths') ? [] : listing());
+  it('keeps an upload running past the folder deadline, never replays it and refreshes its folder', async () => {
+    vi.useFakeTimers(); mockBackend(); show(); await act(async () => {});
+    const pending = deferred<unknown>(); uploadMock.mockReturnValue(pending.promise as never);
     fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [new File(['data'], 'slow.txt')]}});
     await act(async () => {vi.advanceTimersByTime(90_000);});
     expect(uploadCalls()).toHaveLength(1);
-    expect(uploadCalls()[0][1]?.signal).toBeUndefined();
-    expect(screen.getByRole('button', {name: 'Transferring…'})).toBeDisabled();
+    expect(uploadCalls()[0][2]?.signal?.aborted).toBe(false);
+    // Transfers no longer lock the page: another upload can be queued at once.
+    expect(screen.getByRole('button', {name: 'Upload here'})).toBeEnabled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    const lists = listingCalls().length;
     await act(async () => {pending.resolve({bytes: 4});});
     expect(uploadCalls()).toHaveLength(1);
+    expect(within(dock()).getByText('Uploaded · 4 B')).toBeVisible();
+    expect(listingCalls()).toHaveLength(lists + 1);
     expect(screen.getByRole('table', {name: 'Remote files'})).toBeVisible();
   });
 
+  it('keeps a transfer running after the Files page closes', async () => {
+    mockBackend(); const page = render(<FilesPage hosts={hosts} runtime={runtime}/>); render(<TransferPanel/>);
+    await screen.findByRole('table', {name: 'Remote files'});
+    const pending = deferred<unknown>(); uploadMock.mockReturnValue(pending.promise as never);
+    fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [new File(['data'], 'away.txt')]}});
+    page.unmount();
+    expect(within(dock()).getByText('away.txt')).toBeVisible();
+    await act(async () => {pending.resolve({bytes: 4});});
+    expect(within(dock()).getByText('Uploaded · 4 B')).toBeVisible();
+    expect(uploadCalls()[0][2]?.signal?.aborted).toBe(false);
+  });
+
   it('keeps conflict retries bound to the original file, host and path after switching hosts', async () => {
-    await ready(); const pending = deferred<unknown>();
-    apiMock.mockImplementation(async (path, options) => path.endsWith('/upload') ? pending.promise : path.endsWith('/paths') ? [] : listing({alias: path.startsWith('/hosts/b/') ? 'beta' : 'alpha'}));
+    await ready(); const pending = deferred<unknown>(); uploadMock.mockReturnValueOnce(pending.promise as never);
+    apiMock.mockImplementation(async path => path.endsWith('/paths') ? [] : listing({alias: path.startsWith('/hosts/b/') ? 'beta' : 'alpha'}));
     const file = new File(['data'], 'report #&?.txt');
     fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [file]}});
     expect(uploadCalls()).toHaveLength(1);
-    const original = uploadCalls()[0][1]!.body as FormData;
-    expect(original.get('overwrite')).toBe('false'); expect(original.get('path')).toBe('/srv/app/report #&?.txt');
+    expect(uploadForm(0).get('overwrite')).toBe('false'); expect(uploadForm(0).get('path')).toBe('/srv/app/report #&?.txt');
     await switchToBeta();
     await act(async () => {pending.reject(new ApiError(409, 'exists', 'Already exists', {type: 'file', size: 9}));});
-    const dialog = await screen.findByRole('dialog', {name: 'File already exists'});
-    expect(within(dialog).getByText('alpha')).toBeVisible();
+    expect(await within(dock()).findByText('Already exists')).toBeVisible();
+    expect(within(dock()).getByText('alpha:/srv/app')).toBeVisible();
+    expect(within(dock()).getByText('file · 9 B')).toBeVisible();
     expect(uploadCalls()).toHaveLength(1);
-    apiMock.mockImplementation(async path => path.endsWith('/upload') ? {bytes: 4} : path.endsWith('/paths') ? [] : listing());
     const betaLists = apiMock.mock.calls.filter(([path]) => path.startsWith('/hosts/b/files')).length;
-    fireEvent.click(within(dialog).getByRole('button', {name: 'Overwrite this file'}));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    const [retryPath, retryOptions] = uploadCalls()[1]; const retry = retryOptions!.body as FormData;
-    expect(retryPath).toBe('/hosts/a%2F%23/upload'); expect(retry.get('file')).toBe(file);
-    expect(retry.get('path')).toBe('/srv/app/report #&?.txt'); expect(retry.get('overwrite')).toBe('true');
+    fireEvent.click(within(dock()).getByRole('button', {name: 'Overwrite this file'}));
+    await waitFor(() => expect(within(dock()).getByText('Uploaded · 4 B')).toBeVisible());
+    expect(uploadCalls()[1][0]).toMatch(/^\/hosts\/a%2F%23\/upload\?transfer_id=\w+$/); expect(uploadForm(1).get('file')).toBe(file);
+    expect(uploadForm(1).get('path')).toBe('/srv/app/report #&?.txt'); expect(uploadForm(1).get('overwrite')).toBe('true');
     expect(apiMock.mock.calls.filter(([path]) => path.startsWith('/hosts/b/files'))).toHaveLength(betaLists);
   });
 
@@ -332,28 +356,27 @@ describe('Files page', () => {
     const file = new File(['data'], 'picked.txt');
     fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [file]}});
     await waitFor(() => expect(uploadCalls()).toHaveLength(1));
-    const [path, options] = uploadCalls()[0];
-    expect(path).toBe('/hosts/a%2F%23/upload');
-    expect((options!.body as FormData).get('path')).toBe('/srv/app/picked.txt');
+    expect(uploadCalls()[0][0]).toMatch(/^\/hosts\/a%2F%23\/upload\?transfer_id=\w+$/);
+    expect(uploadForm(0).get('path')).toBe('/srv/app/picked.txt');
   });
 
-  it('offers cancel and safe rename after a conflict, without automatic overwrites', async () => {
+  it('offers cancel and safe rename after a conflict, without automatic overwrites or history entries', async () => {
     await ready();
-    apiMock.mockImplementation(async path => {if (path.endsWith('/upload')) throw new ApiError(409, 'exists', 'Already exists'); return path.endsWith('/paths') ? [] : listing();});
+    uploadMock.mockRejectedValue(new ApiError(409, 'exists', 'Already exists'));
     const file = new File(['data'], 'report.txt'); fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [file]}});
-    let dialog = await screen.findByRole('dialog', {name: 'File already exists'});
-    fireEvent.change(within(dialog).getByRole('textbox', {name: 'New filename'}), {target: {value: '../escape'}});
-    expect(within(dialog).getByRole('button', {name: 'Upload with new name'})).toBeDisabled();
-    fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'})); expect(uploadCalls()).toHaveLength(1);
-    await waitFor(() => expect(location.hash).not.toContain('files-conflict'));
+    await within(dock()).findByText('Already exists');
+    fireEvent.change(within(dock()).getByRole('textbox', {name: 'New filename'}), {target: {value: '../escape'}});
+    expect(within(dock()).getByRole('button', {name: 'Upload with new name'})).toBeDisabled();
+    fireEvent.click(within(dock()).getByRole('button', {name: 'Cancel upload report.txt'}));
+    expect(within(dock()).getByText('Canceled')).toBeVisible(); expect(uploadCalls()).toHaveLength(1);
     fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [file]}});
-    dialog = await screen.findByRole('dialog', {name: 'File already exists'});
-    fireEvent.change(within(dialog).getByRole('textbox', {name: 'New filename'}), {target: {value: 'report (2).txt'}});
-    apiMock.mockImplementation(async path => path.endsWith('/upload') ? {bytes: 4} : path.endsWith('/paths') ? [] : listing());
-    fireEvent.click(within(dialog).getByRole('button', {name: 'Upload with new name'}));
+    await within(dock()).findByText('Already exists');
+    fireEvent.change(within(dock()).getByRole('textbox', {name: 'New filename'}), {target: {value: 'report (2).txt'}});
+    uploadMock.mockResolvedValue({bytes: 4});
+    fireEvent.click(within(dock()).getByRole('button', {name: 'Upload with new name'}));
     await waitFor(() => expect(uploadCalls()).toHaveLength(3));
-    const form = uploadCalls()[2][1]!.body as FormData;
-    expect(form.get('path')).toBe('/srv/app/report (2).txt'); expect(form.get('file')).toBe(file); expect(form.get('overwrite')).toBe('false');
+    expect(uploadForm(2).get('path')).toBe('/srv/app/report (2).txt'); expect(uploadForm(2).get('file')).toBe(file); expect(uploadForm(2).get('overwrite')).toBe('false');
+    expect(location.hash).toBe('#/files');
   });
 
   it('uses the runtime byte limit, permits zero-byte files, and blocks symlink and special downloads', async () => {
@@ -367,18 +390,22 @@ describe('Files page', () => {
     const createObjectURL = vi.fn(() => 'blob:download'), revokeObjectURL = vi.fn();
     vi.stubGlobal('URL', Object.assign(URL, {createObjectURL, revokeObjectURL}));
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-    downloadMock.mockResolvedValue({blob: new Blob([]), filename: 'zero'});
+    const pending = deferred<{blob: Blob; filename: string}>(); downloadMock.mockReturnValue(pending.promise);
     fireEvent.click(screen.getByRole('button', {name: 'Download zero'}));
-    await waitFor(() => expect(downloadMock).toHaveBeenCalledWith('/hosts/a%2F%23/download', {path: '/srv/app/zero'}));
+    expect(downloadMock).toHaveBeenCalledWith(expect.stringMatching(/^\/hosts\/a%2F%23\/download\?transfer_id=\w+$/), {path: '/srv/app/zero'}, expect.objectContaining({signal: expect.any(AbortSignal)}));
+    // The same file is not fetched twice while its download is in flight.
+    expect(screen.getByRole('button', {name: 'Download zero'})).toBeDisabled();
+    await act(async () => {pending.resolve({blob: new Blob([]), filename: 'zero'});});
     expect(click).toHaveBeenCalledOnce(); await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith('blob:download'));
+    expect(screen.getByRole('button', {name: 'Download zero'})).toBeEnabled();
     fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [new File(['12345678'], 'exact-upload')]}});
     await waitFor(() => expect(uploadCalls()).toHaveLength(1));
   });
 
   it.each([[502, 'auth_failed', 'Authentication failed'], [403, 'csrf_failed', 'CSRF verification failed'], [401, 'unauthorized', 'Session expired'], [501, 'unsupported', 'Safe upload is unsupported']] as const)('does not replay an upload after %s %s', async (status, code, message) => {
-    await ready(); apiMock.mockImplementation(async path => {if (path.endsWith('/upload')) throw new ApiError(status, code, message); return path.endsWith('/paths') ? [] : listing();});
+    await ready(); uploadMock.mockRejectedValue(new ApiError(status, code, message));
     fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [new File(['data'], 'upload.txt')]}});
-    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(await within(dock()).findByRole('alert')).toHaveTextContent(message);
     expect(uploadCalls()).toHaveLength(1); expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 

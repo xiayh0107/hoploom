@@ -144,19 +144,42 @@ a precise timestamp from the legacy SFTP date string.
 
 Browsing returns metadata only. Downloading a selected file and **Upload here**
 are explicit CSRF-protected actions, with the transfer bound to its original
-host and directory even if you switch tabs while it runs. The runtime advertises
-the 100 MiB web limit. Downloads check source size before transfer and staged
-size afterward; nonregular entries and symlinks with unverifiable target size
-are refused. Use `hoploom get` / `hoploom put` for larger transfers.
+host and directory. The runtime advertises the 100 MiB web limit. Downloads
+check source size before transfer and staged size afterward; nonregular entries
+and symlinks with unverifiable target size are refused. Use `hoploom get` /
+`hoploom put` for larger transfers.
 
-An upload first refuses an existing destination. Its conflict dialog shows
+Transfers belong to the app, not to the Files page: they keep running when you
+switch file tabs, hosts or pages, and the **Transfers** dock in the corner lists
+each one until you clear it. Two run at a time and up to eight more wait; each
+row can be cancelled. A row shows a percentage only for bytes actually counted:
+first between the browser and Hoploom, then on the host while SFTP writes an
+upload or fetches a download. Host-side upload progress is how far SFTP has
+read the staged file, which Linux and macOS expose; on Windows the row says the
+host is writing, without a percentage. Cancelling stops that SFTP transfer at
+once, removes its partial copy and frees the server slot; a shared SSH
+connection stays open. If the cancel reaches the host after an upload was
+published, the row says the file may exist. A failed transfer is retried only when you
+click **Retry**. Records exist only in memory: they never enter the URL, browser
+history or storage, and they are cleared when the session ends. Reloading the
+page while a transfer runs asks first.
+
+An upload first refuses an existing destination. Its row in the dock shows
 available existing metadata and offers a different filename or explicit
 replacement. A new destination is staged beside its target and published with
 SFTP's no-replace hard-link operation, protecting files created during transfer.
 A server without this operation fails safely with an unsupported error.
-Explicit replacement sends `overwrite=true`. Internal staging paths are never
-returned, and temporary local files are removed at request completion. The
-CLI's existing transfer behavior is unchanged.
+Explicit replacement sends `overwrite=true`; the file is staged the same way and
+swapped in with SFTP's atomic rename, so a cancelled or failed replacement leaves
+the original intact. A symlink target, or a server without atomic rename, is
+written in place, and that write cannot be cancelled. Internal staging paths are never
+returned. The server reads an upload only after the session, CSRF token and a
+transfer slot are confirmed, stops at the size limit, and streams downloads in
+chunks; its temporary files are removed however the request ends, including
+when the browser disconnects. While another tab holds the server's slots, the
+row says it is waiting; when the queue is full as well, the transfer fails with
+a `busy` error that **Retry** can resubmit. The CLI's existing transfer
+behavior is unchanged.
 
 Permission denied, missing paths, authentication failure, timeout, conflicts,
 size limits and unsupported publication have distinct errors. A failed or stale

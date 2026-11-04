@@ -76,7 +76,7 @@ describe implemented operations; native-window/dialog capabilities are false.
 | Notes | `PUT /api/v1/hosts/{identifier}/notes`, with `mode: append, set, clear` |
 | Diagnostics | `POST /api/v1/hosts/{identifier}/test` or `/diagnose`; optional bounded `timeout` |
 | Batch checks | `POST /api/v1/hosts/test` with `identifiers`, optional `timeout` and `concurrency` |
-| Files | `GET /api/v1/hosts/{identifier}/files?path=...&name_filter=...`; explicit `POST /download`, `POST /upload`; `POST /files/metadata` for the optional precise-metadata probe |
+| Files | `GET /api/v1/hosts/{identifier}/files?path=...&name_filter=...`; explicit `POST /download`, `POST /upload` (optional `?transfer_id=`); `GET /api/v1/transfers/{transfer_id}` for host-side progress; `POST /files/metadata` for the optional precise-metadata probe |
 | Saved paths | `GET, POST, PUT /api/v1/hosts/{identifier}/paths`; `PATCH, DELETE /paths/{path_id}`; `POST /paths/{path_id}/used` |
 | Credentials | `GET, POST /api/v1/credentials`; `GET, PATCH, DELETE /credentials/{identifier}` |
 | Credential tests | `POST /api/v1/credentials/{identifier}/test` returns NDJSON stages/result; `GET /credentials/{identifier}/tests` |
@@ -134,10 +134,27 @@ metadata if the target exists. A new upload goes to a random temporary file in
 the same parent, then an SFTP hardlink atomically publishes it without replacing
 a concurrently created target. Failure attempts to remove only the temporary
 file. Servers without hardlink support return `unsupported` (501), with no
-direct-put fallback. Explicit `overwrite=true` permits direct put. CLI `put`
-keeps its existing overwrite behavior. Web file paths reject dot/parent
+direct-put fallback. Explicit `overwrite=true` stages the same way and replaces
+a regular target with the `posix-rename@openssh.com` atomic rename; a symlink or
+other target type, or a server without that extension, gets a direct put that
+cannot be cancelled. CLI `put` keeps its existing overwrite behavior. Web file paths reject dot/parent
 segments and trailing directory paths; local staging filenames are fixed.
 Versioned transfer results omit the internal staging path.
+
+Web transfers share two server slots; eight more requests wait, and beyond that
+the routes answer `503` with `error_code: busy` and `Retry-After`. An upload is
+read only after its session, CSRF token and slot are confirmed. While SFTP runs,
+Hoploom watches the request: a browser disconnect terminates that sftp process
+alone (never its process group, so a shared ControlMaster and its ProxyJump
+helper keep serving other requests), removes the staged copy and frees the slot.
+A client may name the request with `transfer_id` (16–64 characters of
+`A-Za-z0-9_-`). While it runs, `GET /api/v1/transfers/{transfer_id}` from the
+same browser session returns `phase` (`waiting`, `receiving` or `host`),
+`bytes` and `total`. Host-side bytes are the staged download's size or, for an
+upload, sftp's read offset in the staged file (Linux `/proc`, macOS libproc);
+`bytes` is null where the platform cannot tell. Finished, unknown and other
+sessions' ids return 404. The id lives in the query string because the embedded
+DeepSeek Harness panel forwards only a fixed set of headers.
 File browsing is read-only but does initiate an explicit SFTP operation.
 
 Directory responses keep SFTP display fields and numeric `uid`/`gid`. A bounded
@@ -269,7 +286,8 @@ resources, `409` for conflicts, `422` for typed request validation, and `502`
 for SSH failures. V1 file failures also provide `error_code`: permission denied
 maps to 403, missing file/directory to 404, existing target to 409, oversize to
 413, and unsupported safe publication to 501; other transport/file errors use
-502. Legacy transfers keep 400 for oversize, 409 for upload conflicts and 502
+502. A full transfer queue answers 503 `busy`; `canceled` marks a transfer
+stopped because its browser went away. Legacy transfers keep 400 for oversize, 409 for upload conflicts and 502
 for file-operation failures. WebAuthn ceremony documents retain their
 algorithm-specific JSON shape.
 

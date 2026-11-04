@@ -138,6 +138,7 @@ async function mockApi(page: Page, empty = false, unobserved = false) {
       if (current && method === 'POST' && parts[2] === 'download') return route.fulfill({status: 200,
         headers: {'content-type': 'application/octet-stream', 'content-disposition': 'attachment; filename="README.md"'}, body: 'browser fixture'});
     }
+    if (method === 'GET' && parts[0] === 'transfers' && parts.length === 2) return reply({phase: 'host', bytes: null, total: null});
     unexpected.push(`${method} ${url.pathname}`);
     return reply({error: 'fixture_unhandled', message: 'Unhandled browser fixture request'}, 500);
   });
@@ -145,6 +146,7 @@ async function mockApi(page: Page, empty = false, unobserved = false) {
 }
 
 const nav = (page: Page, label: string) => page.getByRole('navigation', {name: 'Primary navigation'}).getByRole('link', {name: new RegExp(`^${label}(?:\\s*\\d+)?$`)});
+const pathOf = (request: RequestRecord) => request.path.split('?')[0];
 const assertClean = (state: Awaited<ReturnType<typeof mockApi>>) => {expect(state.unexpected).toEqual([]); expect(state.errors).toEqual([]);};
 
 test('hover lazily collects missing fields with inline skeletons and deduplicates revisits', async ({page}, info) => {
@@ -458,13 +460,15 @@ test(`key dialogs at ${width}px contain keyboard focus and close with Escape`, a
   await inspect('10-file-host-switcher', page.getByRole('button', {name: 'Switch file host', exact: true}), 'Switch file host');
   await inspect('11-save-directory', page.getByRole('button', {name: '☆ Save path', exact: true}), 'Save path');
   await page.getByLabel('Upload file').setInputFiles({name: 'report.txt', mimeType: 'text/plain', buffer: Buffer.from('browser-smoke')});
-  const conflict = page.getByRole('dialog', {name: 'File already exists', exact: true});
-  await expect(conflict).toBeVisible();
+  // A conflict waits in the app-wide transfer dock, not in a modal.
+  const transfers = page.getByRole('region', {name: 'Transfers', exact: true});
+  await expect(transfers.getByText('Already exists', {exact: true})).toBeVisible();
+  await expect(transfers.getByRole('textbox', {name: 'New filename'})).toHaveValue('report.txt');
   await assertNoPageOverflow(page);
   await page.screenshot({path: info.outputPath(`12-upload-conflict-${width}.png`), fullPage: true});
-  await assertFocusTrap(page, conflict);
-  await page.keyboard.press('Escape');
-  await expect(conflict).toHaveCount(0);
+  await transfers.getByRole('button', {name: 'Cancel upload report.txt', exact: true}).click();
+  await transfers.getByRole('button', {name: 'Clear finished transfers', exact: true}).click();
+  await expect(transfers).toHaveCount(0);
   await nav(page, 'Tags').click();
   await expect(page.getByRole('heading', {name: 'production', exact: true})).toBeVisible();
   await inspect('13-new-tag', page.getByRole('button', {name: 'New tag', exact: true}), 'New tag');
@@ -499,7 +503,7 @@ test(`key dialogs at ${width}px contain keyboard focus and close with Escape`, a
   // to use POST, so it is excluded rather than silently counted as an action.
   const actions = state.requests.filter(value => value.method !== 'GET' && !value.path.endsWith('/files/metadata'));
   expect(actions).toHaveLength(2);
-  expect(actions[0].path).toMatch(/\/upload$/);
+  expect(actions[0].path).toMatch(/\/upload\?transfer_id=[0-9a-f]{32}$/);
   expect(actions[1].path).toMatch(/\/test$/);
   assertClean(state);
 });
@@ -520,15 +524,16 @@ test('linked remote paths, filtering and explicit overwrite preserve the origina
   // The filter request is a listing, not the precise-metadata probe.
   expect(new URL(`http://fixture${state.requests.filter(value => isListing(value.path)).at(-1)!.path}`).searchParams.get('name_filter')).toBe('README');
   await page.getByLabel('Upload file').setInputFiles({name: 'report.txt', mimeType: 'text/plain', buffer: Buffer.from('browser-smoke')});
-  const conflict = page.getByRole('dialog', {name: 'File already exists'});
-  await expect(conflict).toBeVisible();
-  await expect(conflict.getByText(`${directory}/report.txt`, {exact: true})).toBeVisible();
-  expect(state.requests.filter(value => value.path.endsWith('/upload'))).toHaveLength(1);
-  await conflict.getByRole('button', {name: 'Overwrite this file'}).click();
-  await expect(conflict).toHaveCount(0);
-  const uploads = state.requests.filter(value => value.path.endsWith('/upload'));
+  const transfers = page.getByRole('region', {name: 'Transfers'});
+  await expect(transfers.getByText('Already exists', {exact: true})).toBeVisible();
+  await expect(transfers.getByRole('link', {name: `${hosts[0].alias}:${directory}`, exact: true})).toBeVisible();
+  expect(state.requests.filter(value => pathOf(value).endsWith('/upload'))).toHaveLength(1);
+  await transfers.getByRole('button', {name: 'Overwrite this file'}).click();
+  await expect(transfers.getByText('Uploaded · 13 B', {exact: true})).toBeVisible();
+  const uploads = state.requests.filter(value => pathOf(value).endsWith('/upload'));
   expect(uploads).toHaveLength(2);
-  expect(uploads.every(value => value.path === `/api/v1/hosts/${encodeURIComponent(hosts[0].id)}/upload`)).toBe(true);
+  expect(uploads.every(value => pathOf(value) === `/api/v1/hosts/${encodeURIComponent(hosts[0].id)}/upload`)).toBe(true);
+  expect(new Set(uploads.map(value => value.path)).size).toBe(2);
   expect(uploads[0].body).toContain('name="overwrite"\r\n\r\nfalse');
   expect(uploads[1].body).toContain('name="overwrite"\r\n\r\ntrue');
   expect(uploads[1].body).toContain(`${directory}/report.txt`);
@@ -586,7 +591,7 @@ test('Files has collapsed and focus layouts without page overflow', async ({page
   assertClean(state);
 });
 
-test('dialog Back and Forward never replay transfers and rapid reopening stays open', async ({page}) => {
+test('dialog Back and Forward never replay transfers or touch the transfer dock', async ({page}) => {
   const state = await mockApi(page);
   await page.goto('/assets/#/files');
   await expect(page.getByRole('table', {name: 'Remote files'})).toBeVisible();
@@ -607,16 +612,24 @@ test('dialog Back and Forward never replay transfers and rapid reopening stays o
   await expect(newTab).toBeVisible();
   await page.keyboard.press('Escape'); await expect(newTab).toHaveCount(0);
   await page.getByLabel('Upload file').setInputFiles({name: 'back-forward.txt', mimeType: 'text/plain', buffer: Buffer.from('browser-smoke')});
-  const conflict = page.getByRole('dialog', {name: 'File already exists'});
-  await expect(conflict).toBeVisible();
-  await page.goBack(); await expect(conflict).toHaveCount(0);
-  await page.goForward(); await expect(conflict).toBeVisible();
-  expect(state.requests.filter(value => value.path.endsWith('/upload'))).toHaveLength(1);
-  await conflict.getByRole('button', {name: 'Cancel', exact: true}).click();
+  const transfers = page.getByRole('region', {name: 'Transfers'});
+  const pending = transfers.getByRole('listitem').filter({hasText: 'back-forward.txt'});
+  await expect(pending.getByText('Already exists', {exact: true})).toBeVisible();
+  // Transfer records never enter the URL, so history cannot restore or replay one.
+  expect(page.url()).not.toContain('back-forward');
+  await page.getByRole('button', {name: 'Switch file host'}).click();
+  await page.goBack(); await expect(switcher).toHaveCount(0);
+  await page.goForward(); await expect(switcher).toBeVisible();
+  await page.keyboard.press('Escape'); await expect(switcher).toHaveCount(0);
+  await expect(pending.getByText('Already exists', {exact: true})).toBeVisible();
+  expect(state.requests.filter(value => pathOf(value).endsWith('/upload'))).toHaveLength(1);
+  await pending.getByRole('button', {name: 'Cancel upload back-forward.txt', exact: true}).click();
+  await expect(pending.getByText('Canceled', {exact: true})).toBeVisible();
   await page.getByLabel('Upload file').setInputFiles({name: 'rapid-reopen.txt', mimeType: 'text/plain', buffer: Buffer.from('browser-smoke')});
-  await expect(conflict).toBeVisible();
-  await expect(conflict.getByText('/srv/app/rapid-reopen.txt', {exact: true})).toBeVisible();
-  expect(state.requests.filter(value => value.path.endsWith('/upload'))).toHaveLength(2);
+  const reopened = transfers.getByRole('listitem').filter({hasText: 'rapid-reopen.txt'});
+  await expect(reopened.getByText('Already exists', {exact: true})).toBeVisible();
+  await expect(reopened.getByRole('link', {name: 'prod-web-01:/srv/app', exact: true})).toBeVisible();
+  expect(state.requests.filter(value => pathOf(value).endsWith('/upload'))).toHaveLength(2);
   assertClean(state);
 });
 

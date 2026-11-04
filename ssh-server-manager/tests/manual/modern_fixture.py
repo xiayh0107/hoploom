@@ -203,7 +203,10 @@ class FixtureSFTPServer(paramiko.SFTPServer):
             if message.get_text() == "hardlink@openssh.com":
                 self._send_status(request, self.server.hardlink(message.get_text(), message.get_text()))
                 return
+            # Rewind past the request id the caller already read, so other
+            # extensions (posix-rename) reach paramiko intact.
             message = Message(original)
+            message.get_int()
         super()._process(packet, request, message)
 
 
@@ -497,11 +500,29 @@ def fixture_environment():
                "servers": servers, "hosts": hosts, "max_web_transfer_bytes": webapp.MAX_WEB_TRANSFER_BYTES}
 
 
+def slow_transfers(remote: Path, delay: float) -> None:
+    write, read = paramiko.SFTPHandle.write, paramiko.SFTPHandle.read
+
+    def slow_write(self, offset, data):
+        time.sleep(delay)
+        return write(self, offset, data)
+
+    def slow_read(self, offset, length):
+        time.sleep(delay)
+        return read(self, offset, length)
+
+    FixtureHandle.write, FixtureHandle.read = slow_write, slow_read
+    with (remote / "large-download.bin").open("wb") as file:
+        file.truncate(24 * 1024 * 1024)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url-file", required=True, type=Path)
     parser.add_argument("--ready-file", required=True, type=Path)
     parser.add_argument("--stdin-stop", action="store_true", help="Stop cleanly on stdin 'stop' or EOF, including Windows")
+    parser.add_argument("--io-delay-ms", type=float, default=0,
+                        help="Delay each SFTP read/write and add a 24 MiB file, so transfers last long enough to cancel")
     args = parser.parse_args(argv)
     logging.getLogger("paramiko").setLevel(logging.CRITICAL)
     stopped = threading.Event()
@@ -515,6 +536,8 @@ def main(argv=None):
             stopped.set()
         threading.Thread(target=watch_stdin, daemon=True).start()
     with fixture_environment() as fixture:
+        if args.io_delay_ms > 0:
+            slow_transfers(fixture["remote"], args.io_delay_ms / 1000)
         runtime = LocalRuntime(fixture["database"], app_factory=webapp.create_app)
         try:
             # Use the standard launch-token/session path, including URL deletion.

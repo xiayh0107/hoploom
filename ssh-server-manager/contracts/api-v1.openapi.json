@@ -329,30 +329,6 @@
         "title": "AuthStatus",
         "type": "object"
       },
-      "Body_upload_api_v1_hosts__identifier__upload_post": {
-        "properties": {
-          "file": {
-            "contentMediaType": "application/octet-stream",
-            "title": "File",
-            "type": "string"
-          },
-          "overwrite": {
-            "default": false,
-            "title": "Overwrite",
-            "type": "boolean"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          }
-        },
-        "required": [
-          "file",
-          "path"
-        ],
-        "title": "Body_upload_api_v1_hosts__identifier__upload_post",
-        "type": "object"
-      },
       "BulkProbeRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1776,7 +1752,9 @@
                   "timeout",
                   "too_large",
                   "exists",
-                  "unsupported"
+                  "unsupported",
+                  "busy",
+                  "canceled"
                 ],
                 "type": "string"
               },
@@ -4258,6 +4236,49 @@
           "message"
         ],
         "title": "TestResult",
+        "type": "object"
+      },
+      "TransferProgress": {
+        "description": "Host-side work of a running browser transfer. `bytes` counts what sftp\nhas moved so far and is null when the platform cannot tell.",
+        "properties": {
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes"
+          },
+          "phase": {
+            "enum": [
+              "waiting",
+              "receiving",
+              "host"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "phase",
+          "bytes",
+          "total"
+        ],
+        "title": "TransferProgress",
         "type": "object"
       },
       "TransferResult": {
@@ -8908,6 +8929,25 @@
               "title": "Identifier",
               "type": "string"
             }
+          },
+          {
+            "description": "Client-chosen id; GET /transfers/{transfer_id} reports host-side progress while this request runs.",
+            "in": "query",
+            "name": "transfer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_-]{16,64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-chosen id; GET /transfers/{transfer_id} reports host-side progress while this request runs.",
+              "title": "Transfer Id"
+            }
           }
         ],
         "requestBody": {
@@ -9021,6 +9061,16 @@
               }
             },
             "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "security": [
@@ -10867,13 +10917,53 @@
               "title": "Identifier",
               "type": "string"
             }
+          },
+          {
+            "description": "Client-chosen id; GET /transfers/{transfer_id} reports host-side progress while this request runs.",
+            "in": "query",
+            "name": "transfer_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_-]{16,64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-chosen id; GET /transfers/{transfer_id} reports host-side progress while this request runs.",
+              "title": "Transfer Id"
+            }
           }
         ],
         "requestBody": {
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_upload_api_v1_hosts__identifier__upload_post"
+                "properties": {
+                  "file": {
+                    "contentMediaType": "application/octet-stream",
+                    "title": "File",
+                    "type": "string"
+                  },
+                  "overwrite": {
+                    "default": false,
+                    "title": "Overwrite",
+                    "type": "boolean"
+                  },
+                  "path": {
+                    "title": "Path",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file",
+                  "path"
+                ],
+                "title": "UploadForm",
+                "type": "object"
               }
             }
           },
@@ -10979,6 +11069,16 @@
               }
             },
             "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "security": [
@@ -12654,6 +12754,133 @@
         "summary": "Skill Servers",
         "tags": [
           "skills"
+        ]
+      }
+    },
+    "/api/v1/transfers/{transfer_id}": {
+      "get": {
+        "operationId": "transfer_progress_api_v1_transfers__transfer_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transfer_id",
+            "required": true,
+            "schema": {
+              "title": "Transfer Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferProgress"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "summary": "Transfer Progress",
+        "tags": [
+          "files"
         ]
       }
     },

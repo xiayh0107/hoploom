@@ -5,7 +5,6 @@ import secrets
 import shutil
 import stat
 import sys
-import tempfile
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -16,7 +15,7 @@ from urllib.parse import quote
 from .application import ApplicationServices
 from .auth import AuthenticationError, RevealAuth
 from .db import ConflictError, Database, DatabaseError, NotFoundError
-from .paths import asset_dir, error_log_path, managed_ssh_config_path, runtime_dir
+from .paths import asset_dir, error_log_path, managed_ssh_config_path
 from .ssh_config import SSHConfigError, render_config
 from .ssh_runner import SSHError, SSHRunner
 from .runtime import (
@@ -25,11 +24,16 @@ from .runtime import (
 )
 from .validation import ValidationError
 from .vault import VaultError, get_vault
+from .web_transfers import (
+    DisconnectWatch, ProgressBoard, StagedFileResponse, TransferBusy, TransferGate,
+    make_staging, receive_upload, too_large,
+)
 
 
 SESSION_COOKIE = "ssm_session"
-# The browser stages transfers through memory and a temp file; large files
-# belong on the CLI path, which streams straight through sftp.
+# The browser stages each transfer in a private temp file and receives a
+# download as one Blob; large files belong on the CLI path, which streams
+# straight through sftp.
 MAX_WEB_TRANSFER_BYTES = 100 * 1024 * 1024
 
 
@@ -56,6 +60,8 @@ class WebState:
         self.launch_url_file = launch_url_file
         self.origin = origin
         self.sessions: dict[str, BrowserSession] = {}
+        self.transfers = TransferGate()
+        self.progress = ProgressBoard()
         self.auth = RevealAuth(database, rp_id="localhost", origin=origin)
         # Two private locations decide whether host actions can work at all: the
         # host database (every action records its result) and the managed SSH
@@ -124,17 +130,16 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
             Body,
             Depends,
             FastAPI,
-            File,
-            Form,
             HTTPException,
+            Query,
             Request,
             Response,
-            UploadFile,
         )
         from fastapi.exceptions import RequestValidationError
         from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
         from fastapi.security import APIKeyCookie, APIKeyHeader
         from starlette.exceptions import HTTPException as StarletteHTTPException
+        from starlette.requests import ClientDisconnect
     except ImportError as exc:
         raise RuntimeError("UI dependencies are missing; run scripts/bootstrap") from exc
 
@@ -214,6 +219,19 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
                 status_code=500,
             )
         return JSONResponse({"error": "internal server error"}, status_code=500)
+
+    @app.exception_handler(ClientDisconnect)
+    async def client_gone(_request: Request, _exc: ClientDisconnect):
+        # The client left while its body was read, e.g. a cancelled upload.
+        # Cleanup already ran; nobody receives this, and it is not a fault.
+        return Response(status_code=400)
+
+    @app.exception_handler(TransferBusy)
+    async def transfer_busy(_request: Request, exc: TransferBusy):
+        return JSONResponse(
+            {"ok": False, "error": "TransferBusy", "error_code": "busy", "message": str(exc)},
+            status_code=503, headers={"Retry-After": "5"},
+        )
 
     @app.exception_handler(AuthenticationError)
     @app.exception_handler(ValidationError)
@@ -474,73 +492,80 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
     @app.post("/api/servers/{identifier}/download")
     async def download_server_file(
         identifier: str,
+        request: Request,
         payload: dict[str, Any] = Body(...),
-        _session=Depends(csrf_session),
+        session_data=Depends(csrf_session),
+        transfer_id: str | None = Query(None),
     ):
         remote_path = payload.get("path")
         if not isinstance(remote_path, str) or not remote_path.strip():
             raise ValidationError("path is required")
         from .remote_files import validate_web_file_path
-        from .ssh_runner import FileOperationError
         remote_path = validate_web_file_path(remote_path)
         name = posixpath.basename(remote_path.rstrip("/")) or "download"
         if name in {".", ".."}:
             raise ValidationError("path must name a file")
-        staging = Path(tempfile.mkdtemp(dir=runtime_dir(), prefix="dl-"))
-        target = staging / "download"
+        progress, forget = state.progress.open(session_data[0], transfer_id)
         try:
-            result = await asyncio.to_thread(
-                services.files.download, identifier, remote_path, target, max_bytes=MAX_WEB_TRANSFER_BYTES
-            )
-            if result["bytes"] > MAX_WEB_TRANSFER_BYTES:
-                raise FileOperationError(
-                    f"file is larger than the {MAX_WEB_TRANSFER_BYTES // (1024 * 1024)} MB "
-                    "web transfer limit; use hoploom get instead", "too_large"
-                )
-            data = await asyncio.to_thread(target.read_bytes)
+            # The JSON body is already read, so a client that leaves is noticed
+            # while it waits for a slot and while sftp runs, which then stops.
+            async with DisconnectWatch(request) as watch:
+                release = await watch.unless_gone(state.transfers.acquire())
+                staging = make_staging("dl-")
+                target = staging / "download"
+                try:
+                    result = await asyncio.to_thread(
+                        services.files.download, identifier, remote_path, target,
+                        max_bytes=MAX_WEB_TRANSFER_BYTES, cancel=watch.cancel, meter=progress.begin,
+                    )
+                    if result["bytes"] > MAX_WEB_TRANSFER_BYTES:
+                        raise too_large(MAX_WEB_TRANSFER_BYTES, "get")
+                    # From here the response owns the file, the directory and the slot.
+                    response = StagedFileResponse(target, staging, release=release, headers={
+                        # RFC 5987 form so non-ASCII filenames survive the header.
+                        "Content-Disposition": "attachment; filename*=UTF-8''" + quote(name, safe=""),
+                        "Cache-Control": "no-store",
+                    })
+                except BaseException:
+                    watch.cancel.set()
+                    shutil.rmtree(staging, ignore_errors=True)
+                    release()
+                    raise
+            return response
         finally:
-            shutil.rmtree(staging, ignore_errors=True)
-        return Response(
-            content=data,
-            media_type="application/octet-stream",
-            headers={
-                # RFC 5987 form so non-ASCII filenames survive the header.
-                "Content-Disposition": (
-                    "attachment; filename*=UTF-8''" + quote(name, safe="")
-                ),
-                "Cache-Control": "no-store",
-            },
-        )
+            forget()
 
+    # No File/Form parameters: FastAPI would read the whole body before the
+    # session check. Authenticate, take a slot, then stream the body once.
     @app.post("/api/servers/{identifier}/upload")
     async def upload_server_file(
         identifier: str,
-        file: UploadFile = File(...),
-        path: str = Form(...),
-        _session=Depends(csrf_session),
-        overwrite: bool = Form(False),
+        request: Request,
+        session_data=Depends(csrf_session),
+        transfer_id: str | None = Query(None),
     ):
         from .remote_files import validate_web_file_path
-        from .ssh_runner import FileOperationError
-        path = validate_web_file_path(path)
-        staging = Path(tempfile.mkdtemp(dir=runtime_dir(), prefix="ul-"))
-        source = staging / "upload"
+        progress, forget = state.progress.open(session_data[0], transfer_id)
         try:
-            written = 0
-            with source.open("wb") as handle:
-                while chunk := await file.read(1024 * 1024):
-                    written += len(chunk)
-                    if written > MAX_WEB_TRANSFER_BYTES:
-                        raise FileOperationError(
-                            f"upload exceeds the {MAX_WEB_TRANSFER_BYTES // (1024 * 1024)} MB "
-                            "web transfer limit; use hoploom put instead", "too_large"
+            release = await state.transfers.acquire()
+            try:
+                progress.phase = "receiving"
+                staged = await receive_upload(request, limit=MAX_WEB_TRANSFER_BYTES)
+                try:
+                    path = validate_web_file_path(staged.path)
+                    progress.phase = "host"
+                    # The body is consumed; now a vanished client stops sftp.
+                    async with DisconnectWatch(request) as watch:
+                        return await asyncio.to_thread(
+                            services.files.upload, identifier, staged.source, path,
+                            overwrite=staged.overwrite, cancel=watch.cancel, meter=progress.begin,
                         )
-                    handle.write(chunk)
-            return await asyncio.to_thread(
-                services.files.upload, identifier, source, path, overwrite=overwrite
-            )
+                finally:
+                    staged.discard()
+            finally:
+                release()
         finally:
-            shutil.rmtree(staging, ignore_errors=True)
+            forget()
 
     @app.post("/api/import/preview")
     async def import_preview(payload: dict[str, Any] = Body(default={}), _session=Depends(csrf_session)):

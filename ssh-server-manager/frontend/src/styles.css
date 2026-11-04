@@ -733,3 +733,46 @@
 .event-chip.session{background:var(--color-success-soft);color:var(--color-success)}
 .audit-detail{display:flex;align-items:center;gap:var(--space-3);min-width:0}
 .audit-detail>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Transfer dock: app-wide, below dialogs and the host drawer. */
+.transfer-dock{position:fixed;right:var(--space-5);bottom:var(--space-5);z-index:35;display:flex;flex-direction:column;width:min(380px,calc(100vw - 2 * var(--space-5)));max-height:min(60vh,520px);background:var(--color-surface);border:1px solid var(--color-line-strong);border-radius:var(--radius-xl);box-shadow:0 12px 32px #1c1e1a24,0 2px 6px #1c1e1a14;overflow:hidden}
+.transfer-head{display:flex;align-items:center;gap:var(--space-2);min-height:44px;padding:var(--space-2) var(--space-3) var(--space-2) var(--space-4);border-bottom:1px solid var(--color-line);flex-shrink:0}
+.transfer-dock.collapsed .transfer-head{border-bottom:0}
+.transfer-toggle{display:flex;align-items:center;gap:var(--space-3);flex:1;min-width:0;padding:0;border:0;background:none;color:var(--color-ink);font:inherit;font-weight:var(--font-weight-semibold);text-align:left;cursor:pointer}
+.transfer-toggle:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px;border-radius:var(--radius-sm)}
+.transfer-summary{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-muted);font-size:var(--text-sm);font-weight:var(--font-weight-regular)}
+.transfer-chevron{display:grid;margin-left:auto;color:var(--color-faint);transform:rotate(-90deg);transition:transform .15s ease}
+.transfer-chevron.open{transform:rotate(90deg)}
+.transfer-clear.button{min-height:28px;padding:0 var(--space-3);font-size:var(--text-sm)}
+.transfer-list{margin:0;padding:0;list-style:none;overflow:auto}
+.transfer-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--space-3);align-items:start;padding:var(--space-4);border-bottom:1px solid var(--color-line)}
+.transfer-row:last-child{border-bottom:0}
+.transfer-icon{display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius-md);background:var(--color-surface-soft);color:var(--color-muted)}
+.transfer-row.running .transfer-icon{background:var(--color-accent-soft);color:var(--color-accent)}
+.transfer-row.done .transfer-icon{background:var(--color-success-soft);color:var(--color-success)}
+.transfer-row.conflict .transfer-icon{background:var(--color-warning-soft);color:var(--color-warning)}
+.transfer-row.failed .transfer-icon{background:var(--color-danger-soft);color:var(--color-danger)}
+.transfer-main{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.transfer-line{display:flex;align-items:baseline;gap:var(--space-3);min-width:0}
+.transfer-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:var(--font-weight-semibold)}
+.transfer-status{flex-shrink:0;color:var(--color-muted);font-size:var(--text-sm);font-variant-numeric:tabular-nums}
+.transfer-row.done .transfer-status{color:var(--color-success)}
+.transfer-row.conflict .transfer-status{color:var(--color-warning)}
+.transfer-row.failed .transfer-status{color:var(--color-danger)}
+.transfer-where{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-faint);font-size:var(--text-xs);text-decoration:none}
+.transfer-where:hover{color:var(--color-accent);text-decoration:underline}
+.transfer-bar{height:4px;margin-top:var(--space-1);border-radius:var(--radius-sm);background:var(--color-control);overflow:hidden}
+.transfer-bar>span{display:block;width:var(--progress,0%);height:100%;border-radius:inherit;background:var(--color-accent);transition:width .1s linear}
+.transfer-bar.indeterminate>span{width:35%;animation:transfer-sweep 1.4s ease-in-out infinite}
+@keyframes transfer-sweep{from{transform:translateX(-100%)}to{transform:translateX(290%)}}
+.transfer-note,.transfer-error,.transfer-existing{margin:0;font-size:var(--text-sm);line-height:var(--leading-tight)}
+.transfer-note,.transfer-existing{color:var(--color-muted)}
+.transfer-error{color:var(--color-danger);overflow-wrap:anywhere}
+.transfer-conflict{display:flex;flex-direction:column;gap:var(--space-3);margin-top:var(--space-2)}
+.transfer-conflict input{width:100%;min-height:30px;padding:0 var(--space-3);border:1px solid var(--color-line-strong);border-radius:var(--radius-md);background:var(--color-surface);color:var(--color-ink);font:inherit}
+.transfer-conflict input:focus-visible{outline:none;border-color:var(--color-accent);box-shadow:0 0 0 3px var(--color-accent-soft)}
+.transfer-conflict-actions{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.transfer-conflict-actions .button{min-height:28px;padding:0 var(--space-3);font-size:var(--text-sm)}
+.transfer-actions{display:flex;gap:var(--space-1)}
+.transfer-actions .button{width:28px;height:28px;min-height:28px;padding:0;display:grid;place-items:center}
+@media(max-width:640px){.transfer-dock{right:var(--space-4);bottom:var(--space-4);left:var(--space-4);width:auto;max-height:70vh}}

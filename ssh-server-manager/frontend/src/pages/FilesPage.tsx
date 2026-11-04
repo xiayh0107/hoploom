@@ -1,8 +1,9 @@
 import {useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent} from 'react';
-import {api, ApiError, download, json, segment} from '../api';
+import {api, ApiError, json, segment} from '../api';
 import {useDialogState} from '../hooks';
 import type {DirectoryEnrichment, DirectoryEnrichmentEntry, DirectoryEntry, DirectoryListing, Host, RuntimeInfo, SavedPath} from '../types';
-import {Button, EmptyState, ErrorNotice, Icon, Modal, relativeDate} from '../ui';
+import {enqueueDownload, enqueueUpload, filenameValid, joinRemote, onUploaded, useDownloading} from '../transfers';
+import {Button, EmptyState, ErrorNotice, Icon, Modal, formatBytes as bytes, relativeDate} from '../ui';
 import './files.css';
 
 type Props = {hosts: Host[]; runtime: RuntimeInfo; initialHostId?: string; initialPath?: string};
@@ -15,8 +16,7 @@ type FileTab = {
   // table is already painted from the SFTP listing.
   enriching?: boolean;
 };
-type Upload = Readonly<{tabId: string; hostId: string; alias: string; directory: string; path: string; file: File}>;
-type Conflict = {upload: Upload; existing?: Record<string, unknown>; rename: string; error?: unknown};
+type UploadDestination = Readonly<{hostId: string; alias: string; directory: string}>;
 type PathEditor = {hostId: string; alias: string; saved?: SavedPath; label: string; path: string; notes: string; error?: unknown};
 
 let nextTab = 0;
@@ -26,15 +26,6 @@ function newTab(hostId: string, path?: string): FileTab {
 const hostApi = (hostId: string) => `/hosts/${segment(hostId)}`;
 const listingTimeoutMs = 45_000;
 const isAbort = (error: unknown) => (error instanceof Error || error instanceof DOMException) && error.name === 'AbortError';
-const filenameValid = (name: string) => !!name && name !== '.' && name !== '..' && !/[\\/\x00-\x1f\x7f]/.test(name);
-const joinRemote = (directory: string, name: string) => `${directory === '/' ? '' : directory.replace(/\/$/, '')}/${name}`;
-function bytes(size: number) {
-  if (!Number.isFinite(size) || size < 0) return '—';
-  if (size < 1024) return `${size} B`;
-  const unit = size < 1024 ** 2 ? 'KiB' : size < 1024 ** 3 ? 'MiB' : 'GiB';
-  const divisor = unit === 'KiB' ? 1024 : unit === 'MiB' ? 1024 ** 2 : 1024 ** 3;
-  return `${Number((size / divisor).toFixed(1))} ${unit}`;
-}
 function modified(entry: DirectoryEntry) {
   return entry.modified_at && Number.isFinite(Date.parse(entry.modified_at))
     ? relativeDate(entry.modified_at) : entry.modified || '—';
@@ -113,13 +104,12 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
   const [pathInput, setPathInput] = useState('');
   const [editor, setEditor] = useDialogState<PathEditor | null>('files-path', null);
   const [deletePath, setDeletePath] = useDialogState<{hostId: string; alias: string; saved: SavedPath; error?: unknown} | null>('files-delete-path', null);
-  const [conflict, setConflict] = useDialogState<Conflict | null>('files-conflict', null);
-  const [transferBusy, setTransferBusy] = useState(false);
   const [pathBusy, setPathBusy] = useState(false);
   const [transferError, setTransferError] = useState<unknown>();
   const [message, setMessage] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
-  const uploadDestination = useRef<Omit<Upload, 'file' | 'path'> | null>(null);
+  const uploadDestination = useRef<UploadDestination | null>(null);
+  const downloading = useDownloading();
   const pathField = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const requestSequence = useRef(0);
@@ -140,6 +130,9 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
   const updateTab = (id: string, change: Partial<FileTab>) => setTabs(previous => previous.map(tab => tab.id === id ? {...tab, ...change} : tab));
 
   useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
+  // Transfers outlive this page. When an upload lands in a folder a tab shows,
+  // that tab revalidates; other tabs revalidate whenever they are opened.
+  useEffect(() => onUploaded((hostId, directory) => setTabs(previous => previous.map(tab => tab.hostId === hostId && (tab.listing?.path || tab.path) === directory ? {...tab, refresh: tab.refresh + 1} : tab))), []);
   useEffect(() => {
     const query = window.matchMedia?.('(max-width: 1180px)');
     if (!query) return;
@@ -258,10 +251,10 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {event.preventDefault(); setHostSearch(''); setSwitcher('switch');}
-      if (event.key === 'Escape') {setPathEdit(false); if (!switcher && !editor && !conflict && !deletePath) setFocus(false);}
+      if (event.key === 'Escape') {setPathEdit(false); if (!switcher && !editor && !deletePath) setFocus(false);}
     };
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
-  }, [switcher, editor, conflict, deletePath]);
+  }, [switcher, editor, deletePath]);
 
   const entries = useMemo(() => {
     const values = (listing?.entries || []).filter(entry => showHidden || !entry.hidden);
@@ -293,49 +286,23 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
     if (id === activeId) setActiveId(remaining[Math.max(0, tabs.findIndex(tab => tab.id === id) - 1)]?.id || '');
   }
   function toggleSort(key: SortKey) {setSort(previous => ({key, descending: previous.key === key && !previous.descending}));}
-  function refreshOrigin(upload: Upload) {
-    setTabs(previous => previous.map(tab => tab.id === upload.tabId && tab.hostId === upload.hostId && (tab.listing?.path || tab.path) === upload.directory ? {...tab, refresh: tab.refresh + 1} : tab));
-  }
-  async function sendUpload(upload: Upload, overwrite = false) {
-    setTransferBusy(true); setTransferError(undefined); setMessage('');
-    const form = new FormData(); form.set('file', upload.file); form.set('path', upload.path); form.set('overwrite', String(overwrite));
-    try {
-      await api(`${hostApi(upload.hostId)}/upload`, {method: 'POST', body: form});
-      if (!mounted.current) return;
-      setConflict(null); setMessage(`Uploaded ${upload.file.name} to ${upload.alias}:${upload.path}`); refreshOrigin(upload);
-    } catch (error) {
-      if (!mounted.current) return;
-      if (error instanceof ApiError && error.status === 409 && error.code === 'exists') setConflict({upload, existing: error.existing, rename: upload.path.split('/').at(-1) || upload.file.name});
-      else {
-        const contextual = new Error(`${upload.alias}:${upload.path} — ${error instanceof Error ? error.message : String(error)}`);
-        if (conflict) setConflict(previous => previous ? {...previous, error: contextual} : previous);
-        else setTransferError(contextual);
-      }
-    } finally {if (mounted.current) setTransferBusy(false);}
-  }
   function selectUpload(file?: File) {
     if (fileInput.current) fileInput.current.value = '';
-    const destination = uploadDestination.current || (host && activeTab && listing && !staleListing ? {tabId: activeTab.id, hostId: host.id, alias: host.alias, directory: listing.path} : null);
+    const destination = uploadDestination.current || (host && activeTab && listing && !staleListing ? {hostId: host.id, alias: host.alias, directory: listing.path} : null);
     uploadDestination.current = null;
     if (!file || !destination) return;
+    setTransferError(undefined);
     if (!filenameValid(file.name)) {setTransferError(new Error('The filename cannot contain a slash, a control character, or be . or ..')); return;}
     if (!transfersAvailable || file.size > maxBytes) {setTransferError(new Error(`Web uploads are limited to ${bytes(maxBytes)}. Use hoploom put for larger files.`)); return;}
-    const upload = Object.freeze({...destination, path: joinRemote(destination.directory, file.name), file});
-    void sendUpload(upload);
+    // The destination is fixed now; switching tabs or hosts never moves it.
+    try {enqueueUpload({...destination, path: joinRemote(destination.directory, file.name), file});}
+    catch (error) {setTransferError(error);}
   }
-  async function getFile(entry: DirectoryEntry) {
-    if (!host || transferBusy || entry.type !== 'file' || !transfersAvailable || !Number.isFinite(entry.size) || entry.size < 0 || entry.size > maxBytes) return;
-    const hostId = host.id, alias = host.alias, path = entry.path;
-    setTransferBusy(true); setTransferError(undefined); setMessage('');
-    try {
-      const result = await download(`${hostApi(hostId)}/download`, {path});
-      if (!mounted.current) return;
-      const url = URL.createObjectURL(result.blob);
-      const anchor = document.createElement('a'); anchor.href = url; anchor.download = result.filename; document.body.append(anchor); anchor.click(); anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      setMessage(`Downloaded ${alias}:${path}`);
-    } catch (error) {if (mounted.current) setTransferError(new Error(`${alias}:${path} — ${error instanceof Error ? error.message : String(error)}`));}
-    finally {if (mounted.current) setTransferBusy(false);}
+  function getFile(entry: DirectoryEntry) {
+    if (!host || entry.type !== 'file' || !transfersAvailable || !Number.isFinite(entry.size) || entry.size < 0 || entry.size > maxBytes) return;
+    setTransferError(undefined);
+    try {enqueueDownload({hostId: host.id, alias: host.alias, path: entry.path, size: entry.size});}
+    catch (error) {setTransferError(error);}
   }
   async function visitSaved(saved: SavedPath) {
     if (!host) return;
@@ -413,7 +380,7 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
           </div>
           <Button aria-pressed={focus} className={focus ? 'pressed' : ''} onClick={() => setFocus(previous => !previous)}><Icon name="folder" size={14}/>{focus ? 'Exit focus' : 'Focus'}</Button>
           <Button disabled={!!staleListing} onClick={() => updateTab(activeTab.id, {refresh: activeTab.refresh + 1})}><Icon name="refresh" size={14}/>Refresh</Button>
-          <Button variant="primary" disabled={transferBusy || !!staleListing || !!activeTab.error || !listing || !transfersAvailable} onClick={() => {if (listing) uploadDestination.current = {tabId: activeTab.id, hostId: host.id, alias: host.alias, directory: listing.path}; fileInput.current?.click();}}><Icon name="upload" size={14}/>{transferBusy ? 'Transferring…' : 'Upload here'}</Button>
+          <Button variant="primary" disabled={!!staleListing || !!activeTab.error || !listing || !transfersAvailable} onClick={() => {if (listing) uploadDestination.current = {hostId: host.id, alias: host.alias, directory: listing.path}; fileInput.current?.click();}}><Icon name="upload" size={14}/>Upload here</Button>
           <input ref={fileInput} type="file" aria-label="Upload file" className="files-file-input" onChange={event => selectUpload(event.target.files?.[0])}/>
         </div>
       </header>
@@ -456,7 +423,7 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
                 return <tr key={entry.path} className={isSelected ? 'selected' : ''} onClick={() => updateTab(activeTab.id, {selected: entry.path})}>
                   <td><button className="files-name" onClick={() => entry.type === 'directory' ? navigate(entry.path) : updateTab(activeTab.id, {selected: entry.path})}><span className={`files-entry-icon ${entry.type}`}><Icon name={entry.type === 'directory' ? 'folder' : entry.type === 'symlink' ? 'link' : 'file'} size={16}/></span><strong>{entry.name}</strong>{entry.type === 'symlink' && <span className="files-link-target">→ {entry.link_target || 'target unavailable'}</span>}</button>{restriction && entry.type === 'file' && <span className="files-limit-badge">{restriction}</span>}</td>
                   <td className="files-size-column">{entry.type === 'file' ? bytes(entry.size) : '—'}</td><td className="files-modified-column" title={entry.modified_at || 'Exact timestamp unavailable'}>{modified(entry)}</td><td className="files-permissions-column mono">{entry.permissions || '—'}</td><td className="files-owner-column" title={`Group: ${entry.group || (entry.gid != null ? String(entry.gid) : '—')}`}>{owner(entry)}</td>
-                  <td className="files-action-column">{entry.type !== 'directory' && <button className="files-download" aria-label={`Download ${entry.name}`} disabled={!allowed || transferBusy} title={restriction || `Download ${entry.name}`} onClick={event => {event.stopPropagation(); void getFile(entry);}}><Icon name="download" size={16}/></button>}</td>
+                  <td className="files-action-column">{entry.type !== 'directory' && <button className="files-download" aria-label={`Download ${entry.name}`} disabled={!allowed || downloading(host.id, entry.path)} title={restriction || `Download ${entry.name}`} onClick={event => {event.stopPropagation(); getFile(entry);}}><Icon name="download" size={16}/></button>}</td>
                 </tr>;
               })}</tbody>
             </table></div>
@@ -472,6 +439,5 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
     {switcher && <Modal title={switcher === 'new' ? 'Open a file tab' : 'Switch file host'} onClose={() => setSwitcher(null)}><label className="field"><span>Find a host</span><input data-initial-focus="" value={hostSearch} onChange={event => setHostSearch(event.target.value)} placeholder="Alias, address or tag"/></label><div className="files-host-options">{hosts.filter(value => `${value.alias} ${value.hostname} ${value.tags.join(' ')}`.toLocaleLowerCase().includes(hostSearch.toLocaleLowerCase())).map(value => <button key={value.id} onClick={() => chooseHost(value.id)}><Icon name="hosts"/><span><strong>{value.alias}</strong><small>{value.username}@{value.hostname}{value.proxy_jumps.length ? ` via ${value.proxy_jumps.join(' → ')}` : ''}</small></span>{value.id === host?.id && <span className="badge">Current</span>}</button>)}</div></Modal>}
     {editor && <Modal title={editor.saved ? 'Edit saved path' : 'Save path'} onClose={() => {if (!pathBusy) setEditor(null);}}><form onSubmit={savePath}><p className="muted">{editor.alias}</p><ErrorNotice error={editor.error}/><label className="field"><span>Label</span><input required value={editor.label} disabled={pathBusy} onChange={event => setEditor({...editor, label: event.target.value})}/></label><label className="field"><span>Remote path</span><input required className="mono" value={editor.path} disabled={pathBusy} onChange={event => setEditor({...editor, path: event.target.value})}/></label><label className="field"><span>Notes</span><textarea value={editor.notes} disabled={pathBusy} onChange={event => setEditor({...editor, notes: event.target.value})}/></label><div className="actions"><Button disabled={pathBusy} onClick={() => setEditor(null)}>Cancel</Button><Button type="submit" variant="primary" disabled={pathBusy}>{pathBusy ? 'Saving…' : 'Save path'}</Button></div></form></Modal>}
     {deletePath && <Modal title="Delete saved path" onClose={() => {if (!pathBusy) setDeletePath(null);}}><p>Remove <strong>{deletePath.saved.label}</strong> from {deletePath.alias}?</p><p className="mono">{deletePath.saved.path}</p><ErrorNotice error={deletePath.error}/><div className="actions"><Button disabled={pathBusy} onClick={() => setDeletePath(null)}>Cancel</Button><Button variant="danger" disabled={pathBusy} onClick={() => void removePath()}>Delete saved path</Button></div></Modal>}
-    {conflict && <Modal title="File already exists" onClose={() => {if (!transferBusy) setConflict(null);}}><p><strong>{conflict.upload.alias}</strong>: <span className="mono">{conflict.upload.path}</span></p><p>The remote target changed or already exists. Choose a new filename, cancel, or explicitly overwrite this target.</p>{conflict.existing && <dl className="files-conflict-details"><div><dt>Existing type</dt><dd>{String(conflict.existing.type || 'Unavailable')}</dd></div><div><dt>Size</dt><dd>{typeof conflict.existing.size === 'number' ? bytes(conflict.existing.size) : '—'}</dd></div><div><dt>Modified</dt><dd>{String(conflict.existing.modified_at || conflict.existing.modified || '—')}</dd></div></dl>}<ErrorNotice error={conflict.error}/><label className="field"><span>New filename</span><input value={conflict.rename} disabled={transferBusy} onChange={event => setConflict({...conflict, rename: event.target.value, error: undefined})}/></label><div className="actions"><Button disabled={transferBusy} onClick={() => setConflict(null)}>Cancel</Button><Button disabled={transferBusy || !filenameValid(conflict.rename) || joinRemote(conflict.upload.directory, conflict.rename) === conflict.upload.path} onClick={() => void sendUpload(Object.freeze({...conflict.upload, path: joinRemote(conflict.upload.directory, conflict.rename)}))}>Upload with new name</Button><Button variant="danger" disabled={transferBusy} onClick={() => void sendUpload(conflict.upload, true)}>Overwrite this file</Button></div><p className="files-dialog-hint">The original file and destination stay fixed even if you switch tabs or hosts.</p></Modal>}
   </section>;
 }

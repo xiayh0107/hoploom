@@ -76,6 +76,13 @@ export function EmptyState({title, children}: {title: string; children?: ReactNo
 export function PageHeader({eyebrow, title, description, children}: {eyebrow?: string; title: string; description?: string; children?: ReactNode}) {return <header className="page-header"><div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{description && <p>{description}</p>}</div><div className="actions">{children}</div></header>;}
 export function Field({label, children}: {label: string; children: ReactNode}) {return <label className="field"><span>{label}</span>{children}</label>;}
 export function Badge({children, tone = ''}: {children: ReactNode; tone?: string}) {return <span className={`badge ${tone}`}>{children}</span>;}
+export function formatBytes(size: number) {
+  if (!Number.isFinite(size) || size < 0) return '—';
+  if (size < 1024) return `${size} B`;
+  const unit = size < 1024 ** 2 ? 'KiB' : size < 1024 ** 3 ? 'MiB' : 'GiB';
+  const divisor = unit === 'KiB' ? 1024 : unit === 'MiB' ? 1024 ** 2 : 1024 ** 3;
+  return `${Number((size / divisor).toFixed(1))} ${unit}`;
+}
 export const formatDate = (value?: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : '—';
 
 const MINUTE = 60_000, HOUR = 60 * MINUTE, DAY = 24 * HOUR;

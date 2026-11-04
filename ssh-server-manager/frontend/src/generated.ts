@@ -855,6 +855,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/transfers/{transfer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Transfer Progress */
+        get: operations["transfer_progress_api_v1_transfers__transfer_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tunnels": {
         parameters: {
             query?: never;
@@ -988,18 +1005,6 @@ export interface components {
             passkeys: number;
             /** Webauthn Available */
             webauthn_available: boolean;
-        };
-        /** Body_upload_api_v1_hosts__identifier__upload_post */
-        Body_upload_api_v1_hosts__identifier__upload_post: {
-            /** File */
-            file: string;
-            /**
-             * Overwrite
-             * @default false
-             */
-            overwrite: boolean;
-            /** Path */
-            path: string;
         };
         /** BulkProbeRequest */
         BulkProbeRequest: {
@@ -1527,7 +1532,7 @@ export interface components {
             /** Error */
             error: string;
             /** Error Code */
-            error_code?: ("permission_denied" | "not_found" | "not_a_directory" | "unreachable" | "auth_failed" | "timeout" | "too_large" | "exists" | "unsupported") | null;
+            error_code?: ("permission_denied" | "not_found" | "not_a_directory" | "unreachable" | "auth_failed" | "timeout" | "too_large" | "exists" | "unsupported" | "busy" | "canceled") | null;
             existing?: components["schemas"]["FileConflictEntry"] | null;
             /** Message */
             message: string;
@@ -2296,6 +2301,22 @@ export interface components {
             message: string;
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * TransferProgress
+         * @description Host-side work of a running browser transfer. `bytes` counts what sftp
+         *     has moved so far and is null when the platform cannot tell.
+         */
+        TransferProgress: {
+            /** Bytes */
+            bytes: number | null;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "waiting" | "receiving" | "host";
+            /** Total */
+            total: number | null;
         };
         /** TransferResult */
         TransferResult: {
@@ -5867,7 +5888,10 @@ export interface operations {
     };
     download_api_v1_hosts__identifier__download_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Client-chosen id; GET /transfers/{transfer_id} reports host-side progress while this request runs. */
+                transfer_id?: string | null;
+            };
             header?: never;
             path: {
                 identifier: string;
@@ -5963,6 +5987,15 @@ export interface operations {
             };
             /** @description Bad Gateway */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7351,7 +7384,10 @@ export interface operations {
     };
     upload_api_v1_hosts__identifier__upload_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Client-chosen id; GET /transfers/{transfer_id} reports host-side progress while this request runs. */
+                transfer_id?: string | null;
+            };
             header?: never;
             path: {
                 identifier: string;
@@ -7360,7 +7396,17 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_upload_api_v1_hosts__identifier__upload_post"];
+                "multipart/form-data": {
+                    /** File */
+                    file: string;
+                    /**
+                     * Overwrite
+                     * @default false
+                     */
+                    overwrite?: boolean;
+                    /** Path */
+                    path: string;
+                };
             };
         };
         responses: {
@@ -7447,6 +7493,15 @@ export interface operations {
             };
             /** @description Bad Gateway */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8722,6 +8777,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Skill"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Content Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    transfer_progress_api_v1_transfers__transfer_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transfer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferProgress"];
                 };
             };
             /** @description Bad Request */

@@ -9,15 +9,17 @@ import threading
 from datetime import datetime, timezone
 from fastapi.responses import StreamingResponse
 
-from fastapi import APIRouter, Body, Depends, File, Form, Query, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, Query, Request, Response
 
 from . import __version__
 from . import api_models as dto
 from .application import ApplicationServices
 from .credential_keys import read_snapshot
+from .db import NotFoundError
 from .local_metadata import LocalKeyBrowser, agent_metadata
 from .ssh_config import SSHConfigError
 from .validation import ValidationError
+from .web_transfers import TRANSFER_ID_PATTERN
 
 
 class NDJSONResponse(StreamingResponse):
@@ -144,20 +146,57 @@ def build_router(
         result = services.files.enrich_directory(identifier, payload.path, claims)
         return {"path": payload.path, "entries": result.get("entries", {})}
 
+    # Both transfers take a slot first; a full queue answers 503 at once.
+    transfer_busy = {503: {"model": dto.ErrorResponse, "description": "Service Unavailable"}}
+    transfer_query = Query(
+        None, pattern=TRANSFER_ID_PATTERN,
+        description="Client-chosen id; GET /transfers/{transfer_id} reports host-side progress while this request runs.",
+    )
+
     @router.post(
         "/hosts/{identifier}/download", response_class=Response, tags=["files"],
-        responses={200: {"content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}},
+        responses={
+            200: {"content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}},
+            **transfer_busy,
+        },
     )
-    async def download(identifier: str, payload: dto.DownloadRequest, session_data=Depends(csrf_session)):
-        return await handlers["download"](identifier, payload.model_dump(), session_data)
-
-    @router.post("/hosts/{identifier}/upload", response_model=dto.TransferResult, tags=["files"])
-    async def upload(
-        identifier: str, file: UploadFile = File(...), path: str = Form(...),
-        overwrite: bool = Form(False),
-        session_data=Depends(csrf_session),
+    async def download(
+        identifier: str, payload: dto.DownloadRequest, request: Request,
+        session_data=Depends(csrf_session), transfer_id: str | None = transfer_query,
     ):
-        return await handlers["upload"](identifier, file, path, session_data, overwrite=overwrite)
+        return await handlers["download"](
+            identifier, request, payload.model_dump(), session_data=session_data, transfer_id=transfer_id,
+        )
+
+    # The body is declared here rather than as File/Form parameters: FastAPI
+    # would spool the whole multipart body before any dependency ran. The
+    # handler authenticates, takes a transfer slot, then streams the body.
+    @router.post(
+        "/hosts/{identifier}/upload", response_model=dto.TransferResult, tags=["files"],
+        responses=transfer_busy,
+        openapi_extra={"requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {
+            "type": "object", "title": "UploadForm", "required": ["file", "path"],
+            "properties": {
+                "file": {"type": "string", "contentMediaType": "application/octet-stream", "title": "File"},
+                "path": {"type": "string", "title": "Path"},
+                "overwrite": {"type": "boolean", "default": False, "title": "Overwrite"},
+            },
+        }}}}},
+    )
+    async def upload(
+        identifier: str, request: Request,
+        session_data=Depends(csrf_session), transfer_id: str | None = transfer_query,
+    ):
+        return await handlers["upload"](identifier, request, session_data=session_data, transfer_id=transfer_id)
+
+    # Host-side progress of a transfer this session started with transfer_id.
+    # It exists only while that request runs; afterwards the answer is 404.
+    @router.get("/transfers/{transfer_id}", response_model=dto.TransferProgress, tags=["files"])
+    def transfer_progress(transfer_id: str, session_data=Depends(browser_session)):
+        snapshot = state.progress.read(session_data[0], transfer_id)
+        if snapshot is None:
+            raise NotFoundError("no transfer with this id is running")
+        return snapshot
 
     @router.get("/hosts/{identifier}/paths", response_model=list[dto.SavedPath], tags=["paths"])
     def paths(identifier: str):
