@@ -23,8 +23,8 @@ tool with raw SSH or shell execution. Plugin 0.2.0 reuses an existing backend or
 prepares its bundled Hoploom and Python automatically. No separate installation
 is required. While tools are unavailable, call `hoploom_setup` with `action=status`
 and report progress once; do not busy-poll. The user can retry preparation and
-use the original host manager directly inside the Hoploom sidebar, without
-opening an external browser. An explicit custom command
+use the original host manager in the Hoploom panel beside the conversation,
+without opening an external browser. An explicit custom command
 still needs to support MCP. Secret entry remains in the human's UI or terminal.
 
 ## First: route through `hoploom`, not raw ssh

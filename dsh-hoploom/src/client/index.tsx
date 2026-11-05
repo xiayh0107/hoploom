@@ -4,6 +4,7 @@ import { activeStages, API_ROUTE, type BackendState } from '../state.js'
 
 interface ClientContext {
   effect(effect: () => () => void): unknown
+  inject(dependencies: string[], callback: (ctx: RightbarContext) => void): unknown
   locale: {
     register(namespace: string, dictionaries: Record<string, Record<string, string>>): () => void
     bind(namespace: string): (key: string) => string
@@ -17,6 +18,18 @@ interface ClientContext {
   }
 }
 
+interface RightbarContext extends ClientContext {
+  layout: { selectPanel(id: string | null): void }
+  sidebarRight: { mounted: { getSnapshot(): string | undefined }; openTab(kind: string): void }
+  sidebarRightTabs: { register(definition: {
+    id: string; kind: string; keepMounted?: boolean; title: () => string
+    guide?: { id: string; order: number; title: () => string; description?: () => string; icon?: React.ComponentType<{ size?: number }> }[]
+  }): () => void }
+}
+
+const PANEL = 'hoploom'
+const TAB = 'dsh-hoploom'
+
 function HoploomIcon({ size = 22 }: { size?: number }) {
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 64 64" fill="none">
     <rect width="64" height="64" rx="14" fill="#0f766e" />
@@ -26,7 +39,7 @@ function HoploomIcon({ size = 22 }: { size?: number }) {
 }
 
 const styles = `
-.hoploom-panel{height:100%;overflow:auto;color:var(--dsw-alias-label-primary,inherit);font:inherit;box-sizing:border-box}
+.hoploom-panel{height:100%;overflow:auto;color:var(--dsw-alias-label-primary,inherit);font:inherit;box-sizing:border-box;container-type:inline-size}
 .hoploom-inner{max-width:900px;margin:0 auto;padding:48px 32px 64px}
 .hoploom-heading{display:flex;align-items:center;gap:16px;margin-bottom:36px}
 .hoploom-panel h1{font-size:28px;line-height:1.2;letter-spacing:-.02em;margin:0 0 6px;font-weight:650}
@@ -50,7 +63,7 @@ const styles = `
 .hoploom-tags span{font-size:12px;border:1px solid var(--dsw-alias-border-l2,#8884);border-radius:20px;padding:4px 10px}
 .hoploom-example{margin-top:24px!important;border-left:3px solid #0f9488;padding-left:15px}
 .hoploom-notice{margin-top:16px!important;font-size:14px}.hoploom-error{color:var(--dsw-alias-label-primary,inherit)}
-@media(max-width:640px){.hoploom-inner{padding:28px 20px}.hoploom-card{padding:20px}.hoploom-grid{grid-template-columns:1fr;gap:0}.hoploom-heading{margin-bottom:24px}}
+@container(max-width:640px){.hoploom-inner{padding:28px 20px}.hoploom-card{padding:20px}.hoploom-grid{grid-template-columns:1fr;gap:0}.hoploom-heading{margin-bottom:24px}}
 `
 
 export function apply(ctx: ClientContext): void {
@@ -66,6 +79,7 @@ export function apply(ctx: ClientContext): void {
     const requests = React.useRef(new Set<AbortController>())
     const generation = React.useRef(0)
     const startingUi = React.useRef(false)
+    const ready = React.useRef(false)
     const request = React.useCallback(async (action: string) => {
       const controller = new AbortController()
       requests.current.add(controller)
@@ -76,6 +90,7 @@ export function apply(ctx: ClientContext): void {
         const result = await response.json() as { state?: BackendState }
         if (!response.ok) throw new Error('request-failed')
         if (alive.current && sequence === generation.current && result.state) {
+          ready.current = result.state.stage === 'ready' && result.state.uiStage === 'ready'
           setState(result.state); setOffline(false)
         }
         return result
@@ -87,7 +102,7 @@ export function apply(ctx: ClientContext): void {
       async function poll() {
         try { await request('status') }
         catch { if (alive.current) setOffline(true) }
-        if (alive.current) timer = setTimeout(poll, 1500)
+        if (alive.current) timer = setTimeout(poll, ready.current ? 10000 : 1500)
       }
       void poll()
       return () => {
@@ -144,10 +159,40 @@ export function apply(ctx: ClientContext): void {
       </div>
     </section>
   }
-  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'hoploom', locale: 'dsh-hoploom' }, Panel))
+  // Opens the Hoploom tab beside the on-screen conversation; false when no Session is on screen.
+  let openBeside: (() => boolean) | undefined
+  function Entry() {
+    const [inline, setInline] = React.useState(false)
+    // The sidebar row selected this global panel. Return to the conversation before
+    // paint and dock Hoploom on the right, so choosing it never replaces the chat.
+    React.useLayoutEffect(() => { if (!openBeside?.()) setInline(true) }, [])
+    return inline ? <Panel/> : null
+  }
+  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL, locale: 'dsh-hoploom' }, Entry))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-    name: 'sidebar.panellist', id: 'hoploom', order: 25, label: () => t('title'), locale: 'dsh-hoploom',
+    name: 'sidebar.panellist', id: PANEL, order: 25, label: () => t('title'), locale: 'dsh-hoploom',
   }, HoploomIcon))
+  ctx.inject(['layout', 'sidebarRight', 'sidebarRightTabs'], scope => {
+    // Kept mounted so hiding, switching tabs or Sessions keeps transfers and page state.
+    scope.effect(() => scope.sidebarRightTabs.register({
+      id: TAB, kind: PANEL, keepMounted: true, title: () => t('title'),
+      guide: [{ id: 'open', order: 40, title: () => t('title'), description: () => t('guide'), icon: HoploomIcon }],
+    }))
+    scope.slots.inject('sidebar.right.pane.tab', () => scope.slots.register({
+      name: 'sidebar.right.pane.tab', key: TAB, locale: 'dsh-hoploom',
+    }, Panel))
+    scope.effect(() => {
+      openBeside = () => {
+        scope.layout.selectPanel(null)
+        if (scope.sidebarRight.mounted.getSnapshot() !== undefined) {
+          try { scope.sidebarRight.openTab(PANEL); return true } catch {}
+        }
+        scope.layout.selectPanel(PANEL)
+        return false
+      }
+      return () => { openBeside = undefined }
+    })
+  })
 }
 
 export const name = 'dsh-hoploom'

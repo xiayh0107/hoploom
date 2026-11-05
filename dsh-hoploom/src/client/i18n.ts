@@ -1,5 +1,6 @@
 export const en = {
   title: 'Hoploom', subtitle: 'Your SSH hosts, ready for your agent.',
+  guide: 'Hosts, credentials and files',
   description: 'Manage hosts, jump routes and working directories in one place.',
   checking: 'Checking your installation', waiting: 'Another window is preparing Hoploom',
   downloading: 'Downloading the runtime', python: 'Preparing the runtime',
@@ -27,6 +28,7 @@ export const en = {
 }
 export const zh: Record<keyof typeof en, string> = {
   title: 'Hoploom', subtitle: '让 Agent 用好你的 SSH 主机。',
+  guide: '主机、凭据与文件',
   description: '集中管理主机、跳板链路和工作目录。',
   checking: '正在检查本机安装', waiting: '另一个窗口正在准备 Hoploom',
   downloading: '正在下载运行环境', python: '正在准备运行环境',

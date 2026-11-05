@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- dsh-hoploom opens Hoploom in dsh's right sidebar beside the conversation
+  instead of replacing it, keeps the embedded UI mounted while the panel is
+  collapsed or another tab is shown, and lists Hoploom on the right sidebar's
+  start page.
+
 - Add an app-wide **Transfers** dock to the web UI. Uploads and downloads keep
   running across file tabs, hosts and pages; two run at once and eight wait,
   each with its own cancel. Rows show byte progress only when bytes are counted,

@@ -3,8 +3,8 @@
 [简体中文](README.zh-CN.md)
 
 [Hoploom](https://github.com/xiayh0107/hoploom) for **DeepSeek Harness**. Manage
-saved SSH hosts, jump routes, working directories and host-bound skills. The
-sidebar embeds Hoploom's existing host manager directly inside dsh.
+saved SSH hosts, jump routes, working directories and host-bound skills. dsh's
+right sidebar embeds Hoploom's existing host manager beside your conversation.
 Passwords and key passphrases stay in the OS vault.
 
 ## Install
@@ -20,8 +20,10 @@ Requires **dsh 0.2.1-rc.5** and Node.js 22.19+ (22.x) or 24+. Since 0.2.0,
    ```
 
    Use `tui` instead of `web` for terminal sessions.
-2. Click **Hoploom** in the sidebar. The plugin prepares its bundled backend
-   and private Python runtime automatically. The first preparation needs internet
+2. Click **Hoploom** in the sidebar, or choose it on the right sidebar's start
+   page. It opens in the right sidebar, so your conversation stays in view; use
+   the panel's fullscreen control for more room. The plugin prepares its bundled
+   backend and private Python runtime automatically. The first preparation needs internet
    access and can take a few minutes. You can cancel or retry from this panel.
    MCP tools can also reuse a compatible existing Hoploom installation.
 3. The full Hoploom UI appears **inside dsh**, with hosts, ports, tags, skills,
@@ -118,7 +120,7 @@ user's task authorization. Never put credentials in any plugin setting.
 
 ## Human controls and recovery
 
-Opening the Hoploom sidebar starts a private loopback backend and embeds the
+Opening the Hoploom panel starts a private loopback backend and embeds the
 original Hoploom UI. No external browser is opened. This UI always uses the bundled
 backend version; its private runtime is prepared on first use even if MCP uses
 an existing CLI. Both share the configured inventory and vault. The plugin
@@ -131,7 +133,7 @@ native desktop and IP-address views use the existing local master-password flow
 for secret reveal. Credential entry stays in the embedded Hoploom UI. Standalone installations also support `hoploom ui` and terminal shells
 with `hoploom connect ALIAS`. Host-key trust remains a human decision.
 
-If first preparation fails, the sidebar remains usable: check the connection,
+If first preparation fails, the panel remains usable: check the connection,
 proxy or available disk space and choose **Try again**. A custom command failure
 requires correcting that setting or restoring the default `hoploom` command.
 Users upgrading from 0.1.x `spawn hoploom ENOENT` should update the plugin and

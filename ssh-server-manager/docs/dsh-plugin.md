@@ -2,7 +2,8 @@
 
 `dsh-hoploom` connects DeepSeek Harness to Hoploom through its official stdio
 MCP bridge. Version **0.2.0** supports **dsh 0.2.1-rc.5** and adds automatic
-backend preparation plus the full existing Hoploom UI inside a native sidebar panel.
+backend preparation plus the full existing Hoploom UI in dsh's right sidebar,
+beside the conversation.
 
 ## Install and use
 
@@ -18,7 +19,10 @@ Use `tui` for terminal sessions. A downloaded release's absolute `.tgz` path als
 works. For CLI changes to the `desktop` profile, fully quit the desktop app first;
 use its Plugins page while it is open.
 
-Click **Hoploom** in the sidebar. The plugin prepares its bundled Hoploom 0.11.0
+Click **Hoploom** in the sidebar, or choose it on the right sidebar's start page.
+It opens in the right sidebar and keeps the conversation and its draft in view;
+the panel's fullscreen control gives it the whole window when needed. Hoploom
+shows in place only when no Session is on screen. The plugin prepares its bundled Hoploom 0.11.0
 and private Python runtime in the background. MCP tools can also reuse a compatible
 existing install; the UI always uses the bundled version and the same state directories.
 The first preparation needs internet access and may take a few minutes. The panel
@@ -110,7 +114,7 @@ Host-key trust remains a human decision.
 ## Recovery
 
 For a failed first preparation, check network/proxy access and disk space, then
-retry from the sidebar. Cancelling stops only the attempt's owned subprocesses;
+retry from the Hoploom panel. Cancelling stops only the attempt's owned subprocesses;
 an incomplete new environment is discarded after they stop. Completed older
 environments remain available for other profiles. Concurrent installers share
 a lock, and interrupted dead installers are recovered.
@@ -137,8 +141,12 @@ and the [official dsh APIs](https://github.com/deepseek-ai/deepseek-harness).
 4. `@deepseek-ai/dsh-mcp-client` owns schema discovery, namespaced tools,
    cancellation, reconnects and connection disposal. Python still owns inventory,
    vault access, strict host-key checks, command policy and audit actor `mcp`.
-5. The browser factory uses dsh's official `sidebar.panellist` and `main` slots,
-   with shared React and locale services. Its setup endpoint accepts a fixed set
+5. The browser factory registers a right-sidebar tab type through
+   `sidebarRightTabs` and its `sidebar.right.pane.tab` body, kept mounted so
+   collapsing the panel or switching tabs and Sessions does not reload the UI.
+   The `sidebar.panellist` entry's `main` panel returns to the conversation and
+   opens that tab, falling back to the panel in place without a Session on screen.
+   Both use shared React and locale services. Its setup endpoint accepts a fixed set
    of actions; it cannot change remote-tool policy or return credentials.
 6. An iframe loads a separate build of the existing React UI from the same
    frontend source. A private Python adapter hosts the existing FastAPI app,
@@ -171,7 +179,8 @@ installation, cancellation, offline reuse, the built client panel and embedded
 sessions/CSRF/streaming. Frontend changes also require the frontend build and
 checks documented in AGENTS.md. CI runs
 on macOS, Linux and Windows. Before release, install the tarball into a disposable
-`DSH_HOME` and verify sidebar registration, embedded UI operations, setup status
+`DSH_HOME` and verify that the sidebar entry opens Hoploom beside the conversation,
+the right sidebar's start page, embedded UI operations, setup status
 and tool discovery.
 Never use production inventory for release tests.
 
