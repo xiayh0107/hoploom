@@ -196,15 +196,22 @@ in `dsh.compatibility.dshReleases`.
 
 Bump `dsh-hoploom/package.json` and its lockfile, update its changelog and tarball
 examples. The Python version does not change for an adapter-only release.
-Commit reviewed source, tag `dsh-hoploom-vX.Y.Z`, and attach the verified `.tgz`
-to its GitHub Release. The Python publish workflow ignores plugin tags.
+Commit reviewed source and tag `dsh-hoploom-vX.Y.Z`. The Python publish workflow
+ignores plugin tags. Plugin and Python releases have independent lifecycles.
 
-Authenticate locally with `npm login` and publish the reviewed artifact:
-`npm publish /absolute/path/dsh-hoploom-X.Y.Z.tgz --access public`.
-Keep credentials and authentication codes out of repository files and chat.
-Verify the registry version, integrity and an actual fresh installation.
+Publish with the manual `publish-dsh` workflow, dispatched on the matching tag:
+`gh workflow run publish-dsh.yml --ref dsh-hoploom-vX.Y.Z`. It runs in the GitHub
+`npm` environment, which admits only `dsh-hoploom-v*` tags and holds the
+`NPM_TOKEN` secret: a granular npm token with read and write access to
+`dsh-hoploom` only, and 2FA bypass if the account requires 2FA for publishing.
+Set or rotate it in the repository's environment settings, or with
+`gh secret set NPM_TOKEN --env npm`, which reads the value from a hidden prompt.
+The workflow checks the version, rebuilds, runs the plugin checks and publishes
+with provenance.
 
-The manual `publish-dsh` workflow can use npm Trusted Publishing after configuring
-owner `xiayh0107`, repository `hoploom`, workflow `publish-dsh.yml`, environment
-`npm`. Dispatch on the matching plugin tag. It checks the version and publishes
-with OIDC provenance. Plugin and Python releases have independent lifecycles.
+Verify the registry version, integrity and an actual fresh installation, then
+attach the registry's tarball (`npm pack dsh-hoploom@X.Y.Z`) to the GitHub
+Release so both carry the same artifact. As a fallback, publish a reviewed
+tarball locally with `npm login` and `npm publish /absolute/path/dsh-hoploom-X.Y.Z.tgz --access public`.
+Keep tokens, credentials and authentication codes out of repository files,
+command arguments and chat.

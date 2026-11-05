@@ -1,7 +1,8 @@
 name: publish-dsh
 
-# First publish locally, then configure the npm Trusted Publisher for this
-# workflow and the npm environment. Dispatch on dsh-hoploom-vX.Y.Z only.
+# Publishes with the NPM_TOKEN secret of the `npm` environment: a granular
+# npm token limited to dsh-hoploom. The environment admits only
+# dsh-hoploom-v* tags. Dispatch on dsh-hoploom-vX.Y.Z only.
 on:
   workflow_dispatch:
 
@@ -25,6 +26,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Require npm token
+        run: test -n "$NODE_AUTH_TOKEN" || { echo "::error::Add the NPM_TOKEN secret to the npm environment"; exit 1; }
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: npm install --global npm@11
       - name: Require matching release tag
         working-directory: dsh-hoploom
@@ -39,3 +44,5 @@ jobs:
         env:
           HOPLOOM_TEST_PYTHON: python
       - run: npm publish ./dsh-hoploom --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -141,7 +141,7 @@ disposable `DSH_HOME`, not the developer's active profile.
 The plugin's version lives in its `package.json` and lockfile, with release notes
 in its own `CHANGELOG.md`. Use `dsh-hoploom-vX.Y.Z` tags; the Python release steps
 below apply only to the Python distribution. See `docs/dsh-plugin.md` under
-`ssh-server-manager/` for npm publication and trusted-publisher setup.
+`ssh-server-manager/` for npm publication and its `NPM_TOKEN` environment secret.
 
 ## Safety rules (mirror SKILL.md — they bind development too)
 
