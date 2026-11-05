@@ -661,7 +661,7 @@ with `dsh plugin --profile web add dsh-hoploom`. It discovers these MCP tools
 from the local Hoploom executable and defaults to metadata-only access.
 Remote checks and allowlisted execution are explicit plugin settings; disabled
 tools must not be bypassed with a shell. See [DeepSeek Harness](dsh-plugin.md).
-Plugin 0.2.0 checks existing installs and automatically prepares a private Python
+Plugin 0.2.0 and later check existing installs and automatically prepares a private Python
 runtime with the bundled backend when needed. The Hoploom sidebar shows setup
 progress, then embeds the original host manager directly inside dsh. `hoploom_setup` provides status,
 prepare and cancel actions in terminal sessions. Custom `command` overrides

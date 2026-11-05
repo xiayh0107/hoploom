@@ -9,10 +9,11 @@ Passwords and key passphrases stay in the OS vault.
 
 ## Install
 
-Requires **dsh 0.2.1-rc.5** and Node.js 22.19+ (22.x) or 24+. Since 0.2.0,
+Requires **dsh 0.2.1-rc.5 or a later 0.2.x release** (verified on 0.2.1-rc.5 and
+0.2.2-rc.1) and Node.js 22.19+ (22.x) or 24+. Since 0.2.0,
 **you do not need to install Hoploom or Python first**.
 
-1. In **Plugins → Add plugin**, search for `dsh-hoploom`, or run:
+1. In **Plugins → Add plugin**, enter the package name `dsh-hoploom`, or run:
 
    ```sh
    dsh plugin --profile web add dsh-hoploom
@@ -44,7 +45,7 @@ Completed environments are reused on later starts, including offline.
 A downloaded [release artifact](https://github.com/xiayh0107/hoploom/releases) also works:
 
 ```sh
-dsh plugin --profile web add /absolute/path/dsh-hoploom-0.2.0.tgz
+dsh plugin --profile web add /absolute/path/dsh-hoploom-0.2.1.tgz
 ```
 
 Update with `dsh plugin --profile web update dsh-hoploom@latest`. Remove with
@@ -54,6 +55,8 @@ When upgrading from 0.1.x, fully restart dsh after installation to load the new
 sidebar UI. In dsh 0.2.1-rc.5, the old package's absence of a client entry is
 cached for the lifetime of the backend process; refreshing the page is insufficient.
 Finish active tasks before restarting.
+Plugin 0.2.0 accepts only dsh 0.2.1-rc.5, so later dsh releases refuse to
+install it and skip it at startup; update to 0.2.1 or later.
 
 Removal unregisters tools and stops plugin-owned processes. Inventory, vault
 entries and the managed runtime are retained.

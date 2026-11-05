@@ -16,6 +16,14 @@ const scripts = fileURLToPath(new URL('../../ssh-server-manager/scripts/', impor
 const launcher = join(scripts, 'hoploom.py')
 let sequence = 0
 
+// dsh 0.2.2 moved tool execution into a separate executor plugin and made
+// ctx.tools.execute take batches; earlier releases run single calls in dsh-tools.
+const executor = '@deepseek-ai/dsh-tool-executor-native'
+const batched = (() => { try { import.meta.resolve(executor); return true } catch { return false } })()
+async function mountToolExecutor(ctx) {
+  if (batched) await ctx.plugin(await import(executor))
+}
+
 async function fixture(t, overrides = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'dsh-hoploom-'))
   const ctx = new Context()
@@ -41,6 +49,7 @@ db.create_server_path('web1', label='app', path='/srv/app')
   })
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await mountToolExecutor(ctx)
   const fiber = ctx.plugin(plugin, {
     command: python, commandArgs: [launcher], dataDir, runtimeDir, ...overrides,
   })
@@ -51,9 +60,12 @@ db.create_server_path('web1', label='app', path='/srv/app')
 }
 
 async function call(ctx, name, args = {}, signal = new AbortController().signal) {
-  return ctx.tools.execute({
-    callId: `hoploom-test-${++sequence}`, name: `mcp__hoploom__${name}`, arguments: args, signal,
+  const callId = `hoploom-test-${++sequence}`, tool = `mcp__hoploom__${name}`
+  if (!batched) return ctx.tools.execute({ callId, name: tool, arguments: args, signal })
+  const { results } = await ctx.tools.execute({
+    calls: [{ type: 'tool-call', id: callId, name: tool, arguments: JSON.stringify(args) }], signal,
   })
+  return results.find(item => item.callId === callId).result
 }
 
 function payload(result) {

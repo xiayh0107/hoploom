@@ -1,14 +1,14 @@
 # DeepSeek Harness plugin
 
 `dsh-hoploom` connects DeepSeek Harness to Hoploom through its official stdio
-MCP bridge. Version **0.2.0** supports **dsh 0.2.1-rc.5** and adds automatic
-backend preparation plus the full existing Hoploom UI in dsh's right sidebar,
-beside the conversation.
+MCP bridge. Version **0.2.1** supports **dsh 0.2.1-rc.5 and later 0.2.x releases**,
+verified on 0.2.1-rc.5 and 0.2.2-rc.1. It prepares its backend automatically and
+shows the full existing Hoploom UI in dsh's right sidebar, beside the conversation.
 
 ## Install and use
 
 You do not need to install Hoploom or Python first. In dsh's **Plugins → Add
-plugin**, search for `dsh-hoploom`, or run:
+plugin**, enter the package name `dsh-hoploom`, or run:
 
 ```sh
 dsh plugin --profile web add dsh-hoploom
@@ -54,6 +54,10 @@ views use the existing local master-password flow for secret reveal.
 When upgrading from 0.1.x, finish active tasks and fully restart dsh after
 installation. dsh 0.2.1-rc.5 caches the old package's absence of a client entry
 until its backend process exits; a page refresh cannot load the new sidebar.
+
+Plugin 0.2.0 accepts only dsh 0.2.1-rc.5. Later dsh releases refuse to install it
+and skip it at startup with an `incompatible-version` diagnostic; update the
+plugin to 0.2.1 or later instead of granting an exemption.
 
 ## Install with your agent
 
@@ -183,6 +187,12 @@ on macOS, Linux and Windows. Before release, install the tarball into a disposab
 the right sidebar's start page, embedded UI operations, setup status
 and tool discovery.
 Never use production inventory for release tests.
+
+`engines.dsh` admits the dsh 0.2.x line (`>=0.2.1-rc.5 <0.3.0-0`). dsh compares
+prereleases, so the `-0` bound keeps 0.3 prereleases out. Before widening it, run
+the plugin tests with the dsh devDependencies set to that release, plus
+`@deepseek-ai/dsh-tool-executor-native` from 0.2.2 on, and record the release
+in `dsh.compatibility.dshReleases`.
 
 Bump `dsh-hoploom/package.json` and its lockfile, update its changelog and tarball
 examples. The Python version does not change for an adapter-only release.

@@ -8,10 +8,11 @@
   the loopback server's staged file where sftp's read position is unavailable.
   Cancelling a Windows upload already reported `canceled`.
 
-- dsh-hoploom opens Hoploom in dsh's right sidebar beside the conversation
-  instead of replacing it, keeps the embedded UI mounted while the panel is
-  collapsed or another tab is shown, and lists Hoploom on the right sidebar's
-  start page.
+- dsh-hoploom 0.2.1 opens Hoploom in dsh's right sidebar beside the
+  conversation instead of replacing it, keeps the embedded UI mounted while the
+  panel is collapsed or another tab is shown, and lists Hoploom on the right
+  sidebar's start page. It supports dsh 0.2.1-rc.5 and later 0.2.x releases;
+  0.2.0 accepted only 0.2.1-rc.5.
 
 - Add an app-wide **Transfers** dock to the web UI. Uploads and downloads keep
   running across file tabs, hosts and pages; two run at once and eight wait,

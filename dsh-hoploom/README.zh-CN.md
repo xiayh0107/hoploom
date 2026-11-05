@@ -8,10 +8,11 @@
 
 ## 安装即可开始
 
-需要 **dsh 0.2.1-rc.5**、Node.js 22.19+（22.x）或 24+。
+需要 **dsh 0.2.1-rc.5 或更新的 0.2.x 版本**（已在 0.2.1-rc.5 和 0.2.2-rc.1 上验证）、
+Node.js 22.19+（22.x）或 24+。
 **从 0.2.0 开始，无需先安装 Hoploom 或 Python。**
 
-1. 在 **插件 → 添加插件** 中搜索 `dsh-hoploom`，或运行：
+1. 在 **插件 → 添加插件** 中输入包名 `dsh-hoploom`，或运行：
 
    ```sh
    dsh plugin --profile web add dsh-hoploom
@@ -37,7 +38,7 @@ PyPI 安装；Hoploom 后端已包含在 npm 包内。不会修改系统 Python 
 也可安装 [GitHub Release](https://github.com/xiayh0107/hoploom/releases) 附件：
 
 ```sh
-dsh plugin --profile web add /绝对路径/dsh-hoploom-0.2.0.tgz
+dsh plugin --profile web add /绝对路径/dsh-hoploom-0.2.1.tgz
 ```
 
 更新：`dsh plugin --profile web update dsh-hoploom@latest`。
@@ -45,6 +46,7 @@ dsh plugin --profile web add /绝对路径/dsh-hoploom-0.2.0.tgz
 通过 CLI 修改 `desktop` 配置前，需完全退出桌面应用；运行时使用应用的插件页面。
 从 0.1.x 升级后，需要在当前任务结束后完整重启 dsh 才能显示新增的侧边栏入口。
 dsh 0.2.1-rc.5 会把旧插件“没有前端入口”的结果缓存到后端进程退出，仅刷新页面无效。
+插件 0.2.0 只接受 dsh 0.2.1-rc.5，更新的 dsh 会拒绝安装并在启动时跳过它；请升级到 0.2.1 或更新版本。
 
 卸载会注销工具并停止插件启动的进程，保留主机库、保险库和托管环境。
 

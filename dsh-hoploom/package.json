@@ -1,6 +1,6 @@
 {
   "name": "dsh-hoploom",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Hoploom for DeepSeek Harness: local SSH inventory, host context and explicitly enabled remote operations, with credentials kept in the OS vault.",
   "type": "module",
   "license": "MIT",
@@ -16,7 +16,7 @@
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0",
-    "dsh": "0.2.1-rc.5"
+    "dsh": ">=0.2.1-rc.5 <0.3.0-0"
   },
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -59,7 +59,8 @@
     },
     "compatibility": {
       "dshReleases": {
-        "0.2.1-rc.5": "compatible"
+        "0.2.1-rc.5": "compatible",
+        "0.2.2-rc.1": "compatible"
       }
     },
     "client": {
@@ -90,12 +91,12 @@
     "fflate": "^0.8.2"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5",
-    "@deepseek-ai/dsh-mcp-client": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
-    "@deepseek-ai/schemastery": "~3.18.5",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-mcp-client": ">=0.2.1-rc.5 <0.3.0-0",
+    "@deepseek-ai/dsh-subprocess": ">=0.2.1-rc.5 <0.3.0-0",
+    "@deepseek-ai/dsh-system-prompt": ">=0.2.1-rc.5 <0.3.0-0",
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.5 <0.3.0-0",
     "react": "^18.3.1"
   },
   "peerDependenciesMeta": {

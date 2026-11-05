@@ -1,14 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-11-05
 
+- Support dsh 0.2.1-rc.5 and later 0.2.x releases (`engines.dsh`
+  `>=0.2.1-rc.5 <0.3.0-0`). 0.2.0 accepted only 0.2.1-rc.5, so dsh 0.2.2
+  refuses to install it and skips it at startup. Verified on dsh 0.2.1-rc.5
+  and 0.2.2-rc.1.
 - Open Hoploom in dsh's right sidebar beside the conversation instead of
   replacing it. The left Hoploom entry keeps the chat and its draft in view, and
   the right sidebar's start page lists Hoploom next to files and terminals.
   Only a view without a Session on screen still shows Hoploom in place.
 - Keep the embedded UI mounted while the panel is collapsed or another tab or
   Session is shown, so transfers and page state continue.
+- The embedded UI and bundled backend include Hoploom's Transfers dock; the
+  bundled backend is still versioned 0.11.0 and is reinstalled automatically.
 - Fit the setup panel to the pane width and poll less often once the UI is ready.
+- Run the integration tests against both dsh tool-execution interfaces: the
+  single-call one in 0.2.1 and the batch executor plugin in 0.2.2.
 
 ## 0.2.0 — 2026-11-02
 
