@@ -38,6 +38,13 @@ def source(tmp_path):
     return path
 
 
+def test_batch_paths_escape_backslashes_and_quotes_for_sftp():
+    # sftp -b parses double-quoted arguments with backslash escapes, so a Win32
+    # path keeps its separators only when each one is doubled.
+    assert SSHRunner._sftp_path(r"C:\Users\alice\upload.bin") == r'"C:\\Users\\alice\\upload.bin"'
+    assert SSHRunner._sftp_path('/srv/a "b"') == r'"/srv/a \"b\""'
+
+
 def test_overwrite_stages_beside_the_target_and_renames_over_it(runner, source, monkeypatch):
     batches = []
     monkeypatch.setattr(runner, "stat_file", lambda *_a, **_o: metadata())
@@ -45,7 +52,7 @@ def test_overwrite_stages_beside_the_target_and_renames_over_it(runner, source, 
     runner.upload("box", source, "/srv/app.conf", overwrite=True, cancel=threading.Event())
     assert len(batches) == 1
     put, rename = batches[0]["batch"].splitlines()
-    assert put.startswith(f'@put -p "{source}" "/srv/.ssm-upload-')
+    assert put.startswith(f'@put -p {SSHRunner._sftp_path(str(source))} "/srv/.ssm-upload-')
     staged = put.split()[-1]
     assert rename == f'@rename {staged} "/srv/app.conf"'
     assert batches[0]["batch_mode"] is True and batches[0]["cancel"] is not None
@@ -90,7 +97,7 @@ def test_a_server_that_will_not_rename_over_a_file_gets_the_plain_put(runner, so
     runner.upload("box", source, "/srv/app.conf", overwrite=True, cancel=threading.Event())
     assert ["@rename" in item["batch"] for item in batches] == [True, False, False]
     assert batches[1]["batch"].startswith('@rm "/srv/.ssm-upload-')
-    assert batches[2]["batch"] == f'@put -p "{source}" "/srv/app.conf"\n@quit\n'
+    assert batches[2]["batch"] == f'@put -p {SSHRunner._sftp_path(str(source))} "/srv/app.conf"\n@quit\n'
     # The fallback writes the target in place, so it cannot honour a cancel.
     assert not batches[2]["cancel"].is_set()
 
@@ -100,7 +107,7 @@ def test_a_symlink_target_is_written_through_not_replaced(runner, source, monkey
     monkeypatch.setattr(runner, "stat_file", lambda *_a, **_o: metadata(kind="symlink"))
     monkeypatch.setattr(runner, "_run_transfer", lambda *_a, **options: (batches.append(options["batch"]) or (0, "", "")))
     runner.upload("box", source, "/srv/current", overwrite=True, cancel=threading.Event())
-    assert batches == [f'@put -p "{source}" "/srv/current"\n@quit\n']
+    assert batches == [f'@put -p {SSHRunner._sftp_path(str(source))} "/srv/current"\n@quit\n']
 
 
 def test_a_cancel_before_sftp_starts_runs_nothing(runner, source, tmp_path, monkeypatch):

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix the Windows CI failures in the transfer dock tests: expect the sftp batch
+  quoting the runner actually writes, normalise stoppable-transfer output to
+  text-mode newlines, and let the cancelled-upload test measure progress from
+  the loopback server's staged file where sftp's read position is unavailable.
+  Cancelling a Windows upload already reported `canceled`.
+
 - dsh-hoploom opens Hoploom in dsh's right sidebar beside the conversation
   instead of replacing it, keeps the embedded UI mounted while the panel is
   collapsed or another tab is shown, and lists Hoploom on the right sidebar's

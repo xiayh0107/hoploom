@@ -50,8 +50,13 @@ def slow_server(monkeypatch):
     monkeypatch.setattr(modern_fixture.FixtureHandle, "read", slow_read, raising=False)
 
 
-def cancel_midway(work, *, threshold=1024 * 1024):
-    """Run work(cancel, meter) in a thread; cancel once the meter shows progress."""
+def cancel_midway(work, *, threshold=1024 * 1024, progress=None):
+    """Run work(cancel, meter) in a thread; cancel once enough bytes moved.
+
+    sftp's read position is only visible on Linux and macOS. A caller that can
+    measure progress from the other side, such as the bytes a loopback server
+    has written, passes `progress` so Windows still cancels mid-transfer.
+    """
     cancel, readings, outcome, meters = threading.Event(), [], {}, []
 
     def run():
@@ -70,6 +75,8 @@ def cancel_midway(work, *, threshold=1024 * 1024):
                 readings.append(value)
                 if value >= threshold:
                     break
+            elif progress is not None and progress() >= threshold:
+                break
         time.sleep(0.02)
     cancelled_at = time.monotonic()
     cancel.set()
@@ -98,8 +105,21 @@ def test_a_cancelled_upload_stops_and_leaves_the_destination_unchanged(loopback,
         (remote / name).write_text("keep me\n")
     source = payload(tmp_path)
 
-    outcome, readings, meters, latency = cancel_midway(lambda cancel, meter: runner.upload(
-        "direct", source, f"/{name}", timeout=60, reuse=0, overwrite=overwrite, cancel=cancel, meter=meter))
+    def staged_bytes():
+        # The server writes the upload into a .ssm-upload-* file beside the
+        # target before publishing it, so its size is real progress on every OS.
+        total = 0
+        for path in remote.glob(".ssm-upload-*"):
+            try:
+                total += path.stat().st_size
+            except FileNotFoundError:
+                continue  # Published or cleaned up between the glob and the stat.
+        return total
+
+    outcome, readings, meters, latency = cancel_midway(
+        lambda cancel, meter: runner.upload(
+            "direct", source, f"/{name}", timeout=60, reuse=0, overwrite=overwrite, cancel=cancel, meter=meter),
+        progress=staged_bytes)
 
     assert outcome["error"].error_code == "canceled", outcome
     assert latency < 5

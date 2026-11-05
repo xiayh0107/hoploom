@@ -64,6 +64,17 @@ def stop(process: subprocess.Popen) -> None:
     process.wait()
 
 
+def _decode(output: bytearray) -> str:
+    """Decode captured output with the same newline translation as text mode.
+
+    `subprocess.run(text=True)` translates CRLF, but the streams here arrive as
+    bytes and are decoded at the end. Windows children therefore yield CRLF
+    unless it is normalised, and callers that match sftp diagnostics by line
+    would see a stray `\\r` on every one of them.
+    """
+    return output.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+
+
 def run_stoppable(
     command: list[str],
     *,
@@ -111,8 +122,8 @@ def run_stoppable(
         raise outcome()
     return (
         process.returncode,
-        stdout.decode("utf-8", errors="replace"),
-        stderr.decode("utf-8", errors="replace"),
+        _decode(stdout),
+        _decode(stderr),
     )
 
 

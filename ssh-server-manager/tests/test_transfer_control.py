@@ -39,7 +39,9 @@ def test_a_finished_run_returns_its_status_and_bounded_output():
     returncode, stdout, stderr = run_stoppable(python(code), input_text="get file\n", env=dict(os.environ), timeout=10)
     assert returncode == 3
     assert stdout.startswith("GET FILE\n")
-    assert len(stdout) == 256 * 1024
+    # The cap counts captured bytes; newline normalisation can shorten the
+    # decoded text, so assert the bound rather than an exact count.
+    assert 255 * 1024 < len(stdout) <= 256 * 1024
     assert stderr.strip() == "warn"
 
 
