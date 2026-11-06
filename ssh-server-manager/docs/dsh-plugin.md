@@ -1,7 +1,7 @@
 # DeepSeek Harness plugin
 
 `dsh-hoploom` connects DeepSeek Harness to Hoploom through its official stdio
-MCP bridge. Version **0.2.1** supports **dsh 0.2.1-rc.5 and later 0.2.x releases**,
+MCP bridge. Since 0.2.1 it supports **dsh 0.2.1-rc.5 and later 0.2.x releases**,
 verified on 0.2.1-rc.5 and 0.2.2-rc.1. It prepares its backend automatically and
 shows the full existing Hoploom UI in dsh's right sidebar, beside the conversation.
 
@@ -201,17 +201,19 @@ ignores plugin tags. Plugin and Python releases have independent lifecycles.
 
 Publish with the manual `publish-dsh` workflow, dispatched on the matching tag:
 `gh workflow run publish-dsh.yml --ref dsh-hoploom-vX.Y.Z`. It runs in the GitHub
-`npm` environment, which admits only `dsh-hoploom-v*` tags and holds the
-`NPM_TOKEN` secret: a granular npm token with read and write access to
-`dsh-hoploom` only, and 2FA bypass if the account requires 2FA for publishing.
-Set or rotate it in the repository's environment settings, or with
-`gh secret set NPM_TOKEN --env npm`, which reads the value from a hidden prompt.
-The workflow checks the version, rebuilds, runs the plugin checks and publishes
-with provenance.
+`npm` environment, which admits only `dsh-hoploom-v*` tags, and authenticates
+through npm Trusted Publishing: the package's npmjs.com settings trust owner
+`xiayh0107`, repository `hoploom`, workflow `publish-dsh.yml` and environment
+`npm`, allowing `npm publish`. No npm token is stored. Renaming the workflow file
+or environment requires a new trusted publisher, which must publish successfully
+within two days of creation. The workflow checks the version, rebuilds, runs the
+plugin checks and publishes with provenance.
 
 Verify the registry version, integrity and an actual fresh installation, then
 attach the registry's tarball (`npm pack dsh-hoploom@X.Y.Z`) to the GitHub
-Release so both carry the same artifact. As a fallback, publish a reviewed
-tarball locally with `npm login` and `npm publish /absolute/path/dsh-hoploom-X.Y.Z.tgz --access public`.
+Release so both carry the same artifact. As a fallback, a package owner can
+publish a reviewed tarball locally with `npm login` and
+`npm publish /absolute/path/dsh-hoploom-X.Y.Z.tgz --access public`, if the
+package's publishing access still allows it.
 Keep tokens, credentials and authentication codes out of repository files,
 command arguments and chat.

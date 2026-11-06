@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-11-06
+
+- Publish through npm Trusted Publishing from the `publish-dsh` workflow,
+  with automatic provenance and no stored npm token. The package contents are
+  unchanged from 0.2.1.
+
 ## 0.2.1 — 2026-11-05
 
 - Support dsh 0.2.1-rc.5 and later 0.2.x releases (`engines.dsh`

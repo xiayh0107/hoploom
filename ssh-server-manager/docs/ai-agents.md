@@ -285,8 +285,8 @@ prose.
 ## As an MCP server (optional)
 
 DeepSeek Harness has a dedicated `dsh-hoploom` plugin. Install it with
-`dsh plugin --profile web add dsh-hoploom` (or the `tui` profile). Version 0.2.1
-supports dsh 0.2.1-rc.5 and later 0.2.x releases and reuses existing Hoploom or prepares its bundled backend and Python automatically. It registers namespaced MCP tools and target-first
+`dsh plugin --profile web add dsh-hoploom` (or the `tui` profile). Since 0.2.1
+it supports dsh 0.2.1-rc.5 and later 0.2.x releases and reuses existing Hoploom or prepares its bundled backend and Python automatically. It registers namespaced MCP tools and target-first
 interaction rules. Default access is local metadata; host checks and command
 allowlists are explicit settings in the plugin's configuration form. Do not
 bypass disabled tools through a shell. See [the plugin guide](dsh-plugin.md)

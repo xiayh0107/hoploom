@@ -45,7 +45,7 @@ Completed environments are reused on later starts, including offline.
 A downloaded [release artifact](https://github.com/xiayh0107/hoploom/releases) also works:
 
 ```sh
-dsh plugin --profile web add /absolute/path/dsh-hoploom-0.2.1.tgz
+dsh plugin --profile web add /absolute/path/dsh-hoploom-0.2.2.tgz
 ```
 
 Update with `dsh plugin --profile web update dsh-hoploom@latest`. Remove with

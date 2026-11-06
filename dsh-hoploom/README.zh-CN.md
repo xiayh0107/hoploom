@@ -38,7 +38,7 @@ PyPI 安装；Hoploom 后端已包含在 npm 包内。不会修改系统 Python 
 也可安装 [GitHub Release](https://github.com/xiayh0107/hoploom/releases) 附件：
 
 ```sh
-dsh plugin --profile web add /绝对路径/dsh-hoploom-0.2.1.tgz
+dsh plugin --profile web add /绝对路径/dsh-hoploom-0.2.2.tgz
 ```
 
 更新：`dsh plugin --profile web update dsh-hoploom@latest`。

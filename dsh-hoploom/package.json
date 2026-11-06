@@ -1,6 +1,6 @@
 {
   "name": "dsh-hoploom",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Hoploom for DeepSeek Harness: local SSH inventory, host context and explicitly enabled remote operations, with credentials kept in the OS vault.",
   "type": "module",
   "license": "MIT",
