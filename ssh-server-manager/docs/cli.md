@@ -214,6 +214,10 @@ Notes:
   A new credential need not be bound before testing. Inconclusive tests leave
   TCP/host-key checkpoints unconfirmed rather than reporting success or blaming
   the target credential; a rejected jump may prevent reaching the target.
+  Credential tests and the pre-save check in `credential rotate` use the
+  selected OpenSSH client. On Windows this includes both the inbox
+  `System32\OpenSSH` client and Git/MSYS OpenSSH, even when a jump host makes
+  them run local helper commands.
 
 ## Host-bound skills
 

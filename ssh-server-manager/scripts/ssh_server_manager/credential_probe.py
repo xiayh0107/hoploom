@@ -34,6 +34,7 @@ from typing import Any, Callable, Iterator
 from .askpass import HOST_KEY_CONFIRM_ENV
 from .db import Database, utc_now
 from .paths import original_ssh_config_path, runtime_dir
+from .process_args import _is_msys_executable
 from .ssh_config import quote_value, split_config_line
 from .ssh_runner import SSHRunner, classify_error
 from .validation import ValidationError, validate_alias, validate_hostname, validate_port, validate_username
@@ -75,6 +76,24 @@ def _shell_command(arguments: list[str]) -> str:
     # CreateProcess/CRT argument decoding; POSIX invokes the local shell.
     result = subprocess.list2cmdline(arguments) if os.name == "nt" else shlex.join(arguments)
     return result.replace("%", "%%")
+
+
+def _uses_msys_client(ssh_binary: str) -> bool:
+    """Whether this Windows client runs commands through its POSIX shell."""
+    return os.name == "nt" and _is_msys_executable(ssh_binary)
+
+
+def _msys_local_command(operation: str, index: int) -> str:
+    if operation not in {"callback", "proxy"} or type(index) is not int or not 0 <= index < 32:
+        raise ValueError("invalid local command configuration")
+    # MSYS/Cygwin OpenSSH runs LocalCommand and ProxyCommand through /bin/sh,
+    # not cmd.exe. The probe already exports its helper, manifest and Python
+    # through the request environment, so fixed variable references keep
+    # Windows backslashes literal and put no request path or secret in the
+    # command text. Double quotes also prevent word splitting and globbing.
+    command = (f'"$SSM_CREDENTIAL_PROBE_PYTHON" "$SSM_CREDENTIAL_PROBE_HELPER" '
+               f'{operation} "$SSM_CREDENTIAL_PROBE_MANIFEST" {index}')
+    return command.replace("%", "%%")
 
 
 def _windows_callback_command(powershell: str, index: int) -> str:
@@ -597,6 +616,7 @@ class CredentialProbeRunner:
         self.database = database
         self.vault_factory = vault_factory
         self.ssh_binary = ssh_binary or shutil.which("ssh") or "ssh"
+        self.msys_client = _uses_msys_client(self.ssh_binary)
 
     def _hops(self, target: dict[str, Any], credential: dict[str, Any]) -> list[dict[str, Any]]:
         inventory = {item["alias"].casefold(): item for item in self.database.list_servers()}
@@ -638,6 +658,14 @@ class CredentialProbeRunner:
                            "probe_alias": f"ssm-credential-probe-{index}"})
         return result
 
+    def _local_command(self, operation: str, index: int, helper: str, manifest: Path) -> str:
+        """Render a command for the client that will execute it."""
+        if self.msys_client:
+            return _msys_local_command(operation, index)
+        if operation == "callback":
+            return _callback_command(helper, manifest, index)
+        return _shell_command([sys.executable, helper, "proxy", str(manifest), str(index)])
+
     def _prepare(self, directory: Path, hops: list[dict[str, Any]], timeout: float) -> tuple[Path, Path]:
         manifest = directory / "request.json"
         config = directory / "ssh.conf"
@@ -648,10 +676,10 @@ class CredentialProbeRunner:
             _private_write(Path(hop["log"]), "")
             lines.extend([f"Host {hop['probe_alias']}", f"  HostName {quote_value(hop['hostname'])}",
                           f"  User {quote_value(hop['username'])}", f"  Port {hop['port']}",
-                          "  PermitLocalCommand yes", "  LocalCommand " + _callback_command(helper, manifest, index)])
+                          "  PermitLocalCommand yes",
+                          "  LocalCommand " + self._local_command("callback", index, helper, manifest)])
             if index:
-                lines.append("  ProxyCommand " + _shell_command(
-                    [sys.executable, helper, "proxy", str(manifest), str(index - 1)]))
+                lines.append("  ProxyCommand " + self._local_command("proxy", index - 1, helper, manifest))
             else:
                 lines.append("  ProxyCommand none")
             selected = hop["credential"]

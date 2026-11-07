@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Support Git for Windows' MSYS OpenSSH in credential tests and
+  `credential rotate`. The probe renders `LocalCommand` and `ProxyCommand`
+  through the client's POSIX shell and reads the helper, manifest and Python
+  from the probe environment, so Windows backslashes stay literal and no
+  request path or secret enters command text. Windows CI now repeats the
+  credential probes with both the native and Git `ssh.exe`.
+
 - Fix the flaky Windows credential-probe timeout test: the callback-timeout
   case now expires its deadline only after the SSH process tree exists, and a
   separate case covers a deadline that expires during preparation. A slow
