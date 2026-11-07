@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix the flaky Windows credential-probe timeout test: the callback-timeout
+  case now expires its deadline only after the SSH process tree exists, and a
+  separate case covers a deadline that expires during preparation. A slow
+  runner can no longer select the wrong timeout path, while the callback case
+  still proves logs are read only after their owning processes close.
+
 - Fix the Windows CI failures in the transfer dock tests: expect the sftp batch
   quoting the runner actually writes, normalise stoppable-transfer output to
   text-mode newlines, and let the cancelled-upload test measure progress from

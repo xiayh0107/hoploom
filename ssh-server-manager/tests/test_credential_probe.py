@@ -26,6 +26,21 @@ from ssh_server_manager.validation import ValidationError
 from ssh_server_manager.vault import MemoryVault
 
 
+class _ProbeClock:
+    """Deterministic stand-in for the probe module's `time` import.
+
+    Tests supply `monotonic`; `sleep` stays real because broker shutdown and
+    process-tree cleanup still wait on wall-clock time.
+    """
+
+    def __init__(self, monotonic):
+        self.monotonic = monotonic
+
+    @staticmethod
+    def sleep(seconds):
+        time.sleep(seconds)
+
+
 @pytest.fixture
 def request_state(tmp_path, monkeypatch):
     monkeypatch.setenv("SSM_RUNTIME_DIR", str(tmp_path / "runtime"))
@@ -401,6 +416,7 @@ def test_route_proof_is_verified_only_after_all_log_owners_close(
                            credential_id=credential["id"])
     database.update_server(host["id"], proxy_jumps=["jump"])
     closed = False
+    tree_started = False
     original_method = module._method
     reads = []
 
@@ -419,6 +435,8 @@ def test_route_proof_is_verified_only_after_all_log_owners_close(
 
     class LockedLogTree:
         def __init__(self, command, environment):
+            nonlocal tree_started
+            tree_started = True
             self.process = RunningProcess()
             self.manifest = json.loads(Path(command[command.index("-F") + 1]).with_name("request.json").read_text())
 
@@ -443,6 +461,11 @@ def test_route_proof_is_verified_only_after_all_log_owners_close(
     monkeypatch.setattr(module, "_Broker", CallbackBroker)
     monkeypatch.setattr(module, "_ProcessTree", LockedLogTree)
     monkeypatch.setattr(module, "_method", read_closed_log)
+    if proof == "missing-hop-callback":
+        # Expire the deadline only after the process tree exists. Preparation
+        # (temporary directory, config, broker socket, environment) must never
+        # decide which timeout path this case exercises on a slow runner.
+        monkeypatch.setattr(module, "time", _ProbeClock(lambda: 1.0 if tree_started else 0.0))
     result = CredentialProbeRunner(database, lambda: vault).test(
         credential["id"], host["id"], timeout=.1 if proof == "missing-hop-callback" else 8)
 
@@ -458,6 +481,46 @@ def test_route_proof_is_verified_only_after_all_log_owners_close(
     if expected_code:
         assert not any(item["stage"] == "authenticate" and item["status"] == "ok"
                        for item in result["stages"])
+    assert not list(Path(os.environ["SSM_RUNTIME_DIR"]).glob("credential-probe-*"))
+
+
+def test_deadline_expired_during_preparation_starts_no_process_tree(request_state, monkeypatch):
+    """The pre-start timeout path must stay distinct from the callback wait."""
+    import ssh_server_manager.credential_probe as module
+
+    database, credential, host, vault = request_state
+    database.create_server(alias="jump", hostname="127.0.0.1", username="fixture", port=22,
+                           credential_id=credential["id"])
+    database.update_server(host["id"], proxy_jumps=["jump"])
+    started_trees = []
+    reads = []
+    original_method = module._method
+    calls = 0
+
+    class NeverTree:
+        def __init__(self, command, environment):
+            started_trees.append(command)
+            raise AssertionError("the deadline expired before the process tree was created")
+
+    def read_closed_log(hop):
+        reads.append(hop["alias"])
+        return original_method(hop)
+
+    def monotonic():
+        nonlocal calls
+        calls += 1
+        # `stream` records its start first; every later check sees an expired
+        # deadline while preparation is still in progress.
+        return 0.0 if calls == 1 else 1.0
+
+    monkeypatch.setattr(module, "time", _ProbeClock(monotonic))
+    monkeypatch.setattr(module, "_ProcessTree", NeverTree)
+    monkeypatch.setattr(module, "_method", read_closed_log)
+    result = CredentialProbeRunner(database, lambda: vault).test(credential["id"], host["id"], timeout=.1)
+
+    assert result["ok"] is False and result["error_code"] == "timeout"
+    assert started_trees == [] and reads == []
+    assert not any(item["stage"] == "prepare" and item["status"] == "ok" for item in result["stages"])
     assert not list(Path(os.environ["SSM_RUNTIME_DIR"]).glob("credential-probe-*"))
 
 
