@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("paramiko")
-if not shutil.which("ssh") or not shutil.which("sftp"):
+_selected_ssh = os.environ.get("SSM_TEST_SSH_CLIENT") or shutil.which("ssh")
+if not _selected_ssh or not shutil.which("sftp"):
     pytest.skip("OpenSSH client required for loopback integration", allow_module_level=True)
 
 from ssh_server_manager.ssh_runner import FileOperationError, SSHRunner
@@ -55,7 +56,7 @@ def test_real_auth_failure_and_strict_routed_forwarding(loopback):
 
 def test_request_credential_probe_uses_saved_trust_stores_without_touching_hosts(loopback, probe_evidence):
     database = loopback["database"]
-    runner = CredentialProbeRunner(database, lambda: loopback["vault"])
+    runner = CredentialProbeRunner(database, lambda: loopback["vault"], ssh_binary=_selected_ssh)
     for alias in ("bad-auth", "multi-hop", "external-route"):
         original = database.get_server(alias)
         before_commands = sum(len(server.exec_commands) for server in loopback["servers"])
@@ -96,7 +97,8 @@ def test_request_probe_preserves_an_unbound_managed_jumps_configured_identity(pr
         target = database.create_server(alias="via-unbound", hostname="127.0.0.1", username="fixture",
                                         port=fixture["servers"][0].port, credential_id="fixture-key",
                                         proxy_jumps=["unbound-jump"])
-        result = CredentialProbeRunner(database, lambda: fixture["vault"]).test("fixture-key", target["id"], timeout=4)
+        result = CredentialProbeRunner(database, lambda: fixture["vault"],
+                                       ssh_binary=_selected_ssh).test("fixture-key", target["id"], timeout=4)
         if not result["ok"] or result["method"] != "publickey":
             pytest.fail(json.dumps({
                 "fixture_alias": "via-unbound",

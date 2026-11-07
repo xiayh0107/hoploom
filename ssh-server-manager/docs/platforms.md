@@ -42,6 +42,8 @@ CI runs the full test suite on macOS, Ubuntu, and Windows on every push.
 - **Vault**: Credential Locker (Windows Credential Manager), no setup.
 - **OpenSSH**: install the optional *OpenSSH Client* feature or
   `winget install Microsoft.OpenSSH.Beta`; `hoploom doctor` verifies it.
+  Git for Windows' MSYS OpenSSH is also supported when it is first on `PATH`,
+  including credential tests, `credential rotate`, config rendering and import.
 - **AskPass**: password/passphrase injection uses the
   `ssh-server-manager-askpass.exe` console script installed next to your
   Python — present automatically under pipx/uv or after
