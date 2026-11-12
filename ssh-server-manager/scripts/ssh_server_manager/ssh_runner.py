@@ -31,6 +31,7 @@ from .remote_files import (
 )
 from .remote_listing import ListingRoute
 from .transfer_control import Cancelled, DeadlineExceeded, read_position, run_stoppable
+from .operations import OperationTimeout
 
 
 class SSHError(RuntimeError):
@@ -264,6 +265,67 @@ class SSHRunner:
         self.listing = ListingRoute()
         # Set to False by callers that must exercise the SFTP compatibility path.
         self.fast_listing = True
+        self._shared_connections = None
+        self._shared_connections_guard = threading.Lock()
+        from .request_config import RequestConfigs
+        self._request_configs = RequestConfigs()
+
+    def close(self) -> None:
+        if self._shared_connections is not None:
+            self._shared_connections.close()
+
+    def _connection_options(self, server: dict[str, Any], reuse: int, timeout: int) -> list[str]:
+        from .operations import current_operation
+        operation = current_operation()
+        if operation is None:
+            return ["-o", "ControlMaster=auto", "-o", f"ControlPersist={reuse}",
+                    "-o", f"ControlPath={runtime_dir() / 'cm-%C'}"]
+        from .shared_connections import ConnectionFailed, SharedConnections
+        import atexit
+        with self._shared_connections_guard:
+            if self._shared_connections is None:
+                self._shared_connections = SharedConnections(runtime_dir)
+                atexit.register(self._shared_connections.close)
+        # Include jump identities and imported config revision. A repointed
+        # route must never lease a master authenticated to the old endpoint.
+        inventory = {host["alias"]: host for host in self.database.list_servers()}
+        route = [server]
+        pending = list(server["proxy_jumps"])
+        visited = {server["alias"]}
+        while pending:
+            alias = pending.pop()
+            if alias in visited:
+                continue
+            visited.add(alias)
+            jump = inventory.get(alias)
+            if jump is not None:
+                route.append(jump); pending.extend(jump["proxy_jumps"])
+        identities = []
+        for host in route:
+            credential = self.database.get_credential(host["credential_id"]) if host.get("credential_id") else None
+            identities.append([*[host.get(field) for field in ("id", "hostname", "port", "username", "credential_id", "proxy_jumps")],
+                               credential.get("revision") if credential else None])
+        base = self._base_command(server, timeout=timeout, reuse=0)
+        import hashlib
+        config = Path(base[base.index("-F") + 1])
+        identity = json.dumps([identities, hashlib.sha256(config.read_bytes()).hexdigest()], sort_keys=True)
+        try:
+            path = self._shared_connections.acquire(operation, identity, base, self._environment(server), reuse,
+                                                     hold_config=lambda: self._request_configs.hold(config))
+        except ConnectionFailed as exc:
+            result = exc.result
+            diagnostics = redact(result.stderr.decode("utf-8", errors="replace")) if result else ""
+            code = file_error_code(diagnostics, result.returncode or 255) if result else "unreachable"
+            raise FileOperationError(sanitize_text(diagnostics, limit=4000) or str(exc), code) from None
+        return ["-o", "ControlMaster=no", "-o", f"ControlPath={path}"]
+
+    def _capture(self, command: list[str], **options: Any):
+        from .execution import capture_command
+        from .operations import current_operation
+        if current_operation() is None:
+            return subprocess.run(literal_config_args(command), **options)
+        return capture_command(command, input_text=options.get("input", ""), env=options["env"],
+                               timeout=options["timeout"], text=options.get("text", True))
 
     def _credential_descriptor(self, server: dict[str, Any]) -> dict[str, Any] | None:
         if not server.get("credential_id"):
@@ -378,6 +440,10 @@ class SSHRunner:
         # is not writable for this app; fall back to a private cache instead of
         # failing a command that never reaches the host.
         config = render_config(self.database, ssh_binary=self.ssh_binary, fallback=True)
+        from .operations import current_operation
+        operation = current_operation()
+        if operation is not None:
+            config = self._request_configs.acquire(operation, config)
         command = [
             self.ssh_binary,
             "-F",
@@ -396,16 +462,7 @@ class SSHRunner:
             "LogLevel=ERROR",
         ]
         if reuse > 0 and os.name != "nt":
-            command.extend(
-                [
-                    "-o",
-                    "ControlMaster=auto",
-                    "-o",
-                    f"ControlPersist={reuse}",
-                    "-o",
-                    f"ControlPath={runtime_dir() / 'cm-%C'}",
-                ]
-            )
+            command.extend(self._connection_options(server, reuse, timeout))
         command.append(server["alias"])
         return command
 
@@ -413,6 +470,10 @@ class SSHRunner:
         self, server: dict[str, Any], *, timeout: int, reuse: int, quiet: bool = True
     ) -> list[str]:
         config = render_config(self.database, ssh_binary=self.ssh_binary, fallback=True)
+        from .operations import current_operation
+        operation = current_operation()
+        if operation is not None:
+            config = self._request_configs.acquire(operation, config)
         command = [
             self.sftp_binary,
             "-S",
@@ -443,16 +504,7 @@ class SSHRunner:
             "BatchMode=no",
         ]
         if reuse > 0 and os.name != "nt":
-            command.extend(
-                [
-                    "-o",
-                    "ControlMaster=auto",
-                    "-o",
-                    f"ControlPersist={reuse}",
-                    "-o",
-                    f"ControlPath={runtime_dir() / 'cm-%C'}",
-                ]
-            )
+            command.extend(self._connection_options(server, reuse, timeout))
         command.append(server["alias"])
         return command
 
@@ -594,7 +646,10 @@ class SSHRunner:
         if fast is not None:
             try:
                 matches = self._shell_matches_sftp(server, timeout=timeout, reuse=reuse)
-            except Exception:  # noqa: BLE001 - a failed check only means "use SFTP"
+            except Exception as exc:  # a transport failure only means "use SFTP"
+                from .operations import OperationError
+                if isinstance(exc, OperationError):
+                    raise
                 matches = False
         if fast is not None and matches:
             self.listing.answered(server)
@@ -631,8 +686,8 @@ class SSHRunner:
         command = self._sftp_command(server, timeout=timeout, reuse=reuse)
         start = time.monotonic()
         try:
-            result = subprocess.run(
-                literal_config_args(command),
+            result = self._capture(
+                command,
                 input=self._directory_batch(remote_path),
                 text=True,
                 encoding="utf-8",
@@ -711,7 +766,7 @@ class SSHRunner:
                              "names": [entry["name"] for entry in visible]},
                     timeout=timeout, reuse=reuse,
                 )
-            except FileOperationError:
+            except (FileOperationError, OperationTimeout):
                 metadata = None
             enrichment_ms = round((time.monotonic() - probe_start) * 1000)
             apply_file_metadata(visible, metadata)
@@ -798,8 +853,8 @@ class SSHRunner:
         command[-1:-1] = ["-T", "-o", "StrictHostKeyChecking=yes", "-o", "NumberOfPasswordPrompts=1"]
         command.append("python3 -c " + shlex.quote(probe))
         try:
-            result = subprocess.run(
-                literal_config_args(command), text=True, encoding="utf-8", errors="replace",
+            result = self._capture(
+                command, text=True, encoding="utf-8", errors="replace",
                 capture_output=True, env=self._environment(server), timeout=timeout + 5, check=False,
             )
         except (subprocess.TimeoutExpired, OSError):
@@ -820,8 +875,8 @@ class SSHRunner:
             changes = [f"@cd {self._sftp_path(remote_path)}"]
         batch = "\n".join([*changes, "@pwd", "@quit", ""])
         try:
-            result = subprocess.run(
-                literal_config_args(command), input=batch, text=True, encoding="utf-8",
+            result = self._capture(
+                command, input=batch, text=True, encoding="utf-8",
                 errors="replace", capture_output=True, env=self._environment(server),
                 timeout=timeout + 5, check=False,
             )
@@ -994,6 +1049,21 @@ class SSHRunner:
             # Abort before publishing if put failed; explicit BatchMode=no in
             # _sftp_command still permits managed AskPass authentication.
             command[-1:-1] = ["-b", "-"]
+        from .operations import current_operation
+        if not stream and current_operation() is not None:
+            from .execution import capture_command
+            from .operations import OperationCancelled, OperationTimeout
+            try:
+                result = capture_command(command, input_text=batch, env=self._environment(server),
+                                         timeout=timeout + TRANSFER_TIMEOUT_GRACE, stdout_limit=256 * 1024,
+                                         stderr_limit=256 * 1024, cancel=cancel, on_start=on_start)
+            except OperationCancelled as exc:
+                raise _canceled() from exc
+            except (subprocess.TimeoutExpired, OperationTimeout) as exc:
+                raise FileOperationError("Transfer deadline exceeded", "timeout") from exc
+            except OSError as exc:
+                raise FileOperationError("sftp is unavailable; install the OpenSSH client and retry", "unreachable") from exc
+            return result.returncode, result.stdout, result.stderr
         if cancel is not None and not stream:
             try:
                 return run_stoppable(
@@ -1199,9 +1269,21 @@ class SSHRunner:
         # over the shared master, never a target removal. It takes no cancel:
         # a cancelled upload must still clean up after itself.
         cleanup = prefix + f"@rm {self._sftp_path(temporary)}\n@quit\n"
+        from .operations import OperationContext, OperationError, bind_operation, current_operation
+        parent = current_operation()
         try:
-            self._run_transfer(server, batch=cleanup, timeout=min(timeout, 12), reuse=reuse, stream=False)
-        except FileOperationError:
+            if parent is None:
+                self._run_transfer(server, batch=cleanup, timeout=min(timeout, 12), reuse=reuse, stream=False)
+            else:
+                # A canceled transfer still owns this staging filename. Use a
+                # separate short cleanup deadline, never the canceled token.
+                cleanup_operation = OperationContext(parent.host_id, 3, session_id=parent.session_id)
+                try:
+                    with bind_operation(cleanup_operation):
+                        self._run_transfer(server, batch=cleanup, timeout=min(timeout, 3), reuse=reuse, stream=False)
+                finally:
+                    cleanup_operation.finish()
+        except (FileOperationError, OperationError, subprocess.TimeoutExpired):
             pass
 
     def _replace_file(
@@ -1214,7 +1296,8 @@ class SSHRunner:
         The file is staged beside the target and renamed over it (OpenSSH uses
         posix-rename). A symlink target keeps the plain put that writes through
         it, and so does a server whose rename refuses to replace a file; that
-        plain put then runs to completion even if cancelled.
+        plain put can already have changed the target when canceled; callers
+        must report that uncertainty rather than imply a rollback.
         """
         try:
             existing = self.stat_file(identifier, remote, timeout=min(timeout, 12), reuse=reuse, follow_symlinks=False)
@@ -1248,10 +1331,11 @@ class SSHRunner:
             finally:
                 if not published:
                     self._remove_staged(server, prefix, temporary, timeout=timeout, reuse=reuse)
-        # A never-set event keeps progress reporting without allowing a stop.
+        # A server without atomic rename may already have modified the target.
+        # Cancellation still stops this request; callers report uncertainty.
         returncode, _stdout, stderr = self._run_transfer(
             server, batch=self._transfer_batch("put", str(source), remote), timeout=timeout,
-            reuse=reuse, stream=False, cancel=threading.Event(), on_start=on_start,
+            reuse=reuse, stream=False, cancel=cancel, on_start=on_start,
         )
         self._finish_transfer(returncode, stderr)
 
@@ -1436,8 +1520,8 @@ class SSHRunner:
         start = time.monotonic()
         stderr = ""
         try:
-            result = subprocess.run(
-                literal_config_args(command),
+            result = self._capture(
+                command,
                 text=True,
                 capture_output=True,
                 env=self._environment(server),
@@ -1516,8 +1600,8 @@ class SSHRunner:
         command = self._sftp_command(server, timeout=timeout, reuse=0)
         start = time.monotonic()
         try:
-            result = subprocess.run(
-                literal_config_args(command),
+            result = self._capture(
+                command,
                 input="@cd\n@pwd\n@quit\n",
                 text=True,
                 encoding="utf-8",
@@ -1817,8 +1901,8 @@ class SSHRunner:
         start = time.monotonic()
         binary_input = isinstance(stdin_data, bytes)
         try:
-            result = subprocess.run(
-                literal_config_args(command),
+            result = self._capture(
+                command,
                 input=stdin_data,
                 text=not binary_input,
                 capture_output=capture,

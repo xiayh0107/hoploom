@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+from contextlib import asynccontextmanager
 
 from .application import ApplicationServices
 from .auth import AuthenticationError, RevealAuth
@@ -28,6 +29,7 @@ from .web_transfers import (
     DisconnectWatch, ProgressBoard, StagedFileResponse, TransferBusy, TransferGate,
     make_staging, receive_upload, too_large,
 )
+from .operations import OperationContext, OperationError, OperationScheduler, OperationTimeout
 
 
 SESSION_COOKIE = "ssm_session"
@@ -35,6 +37,9 @@ SESSION_COOKIE = "ssm_session"
 # download as one Blob; large files belong on the CLI path, which streams
 # straight through sftp.
 MAX_WEB_TRANSFER_BYTES = 100 * 1024 * 1024
+# Queue, browser body and metadata work share a total budget; each SSH/SFTP
+# step retains its existing 120-second timeout plus transfer cleanup grace.
+WEB_TRANSFER_OPERATION_SECONDS = 600
 
 
 @dataclass
@@ -60,6 +65,7 @@ class WebState:
         self.launch_url_file = launch_url_file
         self.origin = origin
         self.sessions: dict[str, BrowserSession] = {}
+        self.operations: OperationScheduler | None = None
         self.transfers = TransferGate()
         self.progress = ProgressBoard()
         self.auth = RevealAuth(database, rp_id="localhost", origin=origin)
@@ -98,6 +104,10 @@ class WebState:
 
     def clean(self) -> None:
         cutoff = time.time() - 12 * 60 * 60
+        if self.operations:
+            for identifier, session in tuple(self.sessions.items()):
+                if session.created_at <= cutoff:
+                    self.operations.cancel_session(identifier)
         self.sessions = {key: value for key, value in self.sessions.items() if value.created_at > cutoff}
         browser = getattr(self, "local_key_browser", None)
         if browser is not None:
@@ -149,7 +159,14 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
     )
     origin = f"http://localhost:{port}"
     state = WebState(database, launch_token=launch_token, origin=origin, launch_url_file=launch_url_file)
-    app = FastAPI(title="Hoploom", docs_url=None, redoc_url=None, openapi_url=None)
+    state.operations = services.operations
+    @asynccontextmanager
+    async def lifespan(_app):
+        try:
+            yield
+        finally:
+            await asyncio.to_thread(services.close)
+    app = FastAPI(title="Hoploom", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
     app.state.services = services
     app.state.web = state
@@ -232,6 +249,12 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
             {"ok": False, "error": "TransferBusy", "error_code": "busy", "message": str(exc)},
             status_code=503, headers={"Retry-After": "5"},
         )
+
+    @app.exception_handler(OperationError)
+    async def operation_error(_request: Request, exc: OperationError):
+        status = 503 if exc.code in {"busy", "executor_unavailable"} else 504 if exc.code == "timeout" else 400 if exc.code == "canceled" else 502
+        return JSONResponse({"ok": False, "error": exc.__class__.__name__, "error_code": exc.code, "message": str(exc)},
+                            status_code=status, headers={"Retry-After": "5"} if status == 503 else {})
 
     @app.exception_handler(AuthenticationError)
     @app.exception_handler(ValidationError)
@@ -414,13 +437,19 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
             services.skills.set_server_skills, identifier, skill_ids
         )
 
+    async def legacy_remote(request: Request, identifier: str, session_id: str, function, *, timeout: float = 45):
+        host = database.get_server(identifier)
+        async with DisconnectWatch(request) as watch:
+            operation = OperationContext(host["id"], timeout, session_id=session_id, canceled=watch.cancel)
+            return await services.operations.run_async(operation, function, watch.gone)
+
     @app.post("/api/servers/{identifier}/test")
-    async def test_server(identifier: str, _session=Depends(csrf_session)):
-        return await asyncio.to_thread(services.diagnostics.test, identifier)
+    async def test_server(identifier: str, request: Request, session_data=Depends(csrf_session)):
+        return await legacy_remote(request, identifier, session_data[0], lambda: services.diagnostics.test(identifier), timeout=15)
 
     @app.post("/api/servers/{identifier}/diagnose")
-    async def diagnose_server(identifier: str, _session=Depends(csrf_session)):
-        return await asyncio.to_thread(services.diagnostics.diagnose, identifier)
+    async def diagnose_server(identifier: str, request: Request, session_data=Depends(csrf_session)):
+        return await legacy_remote(request, identifier, session_data[0], lambda: services.diagnostics.diagnose(identifier), timeout=106)
 
     @app.post("/api/servers/{identifier}/notes")
     @app.put("/api/servers/{identifier}/notes")
@@ -440,10 +469,11 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
     @app.get("/api/servers/{identifier}/files")
     async def list_server_files(
         identifier: str,
+        request: Request,
         path: str | None = None,
-        _session=Depends(browser_session),
+        session_data=Depends(browser_session),
     ):
-        return await asyncio.to_thread(services.files.list_directory, identifier, path)
+        return await legacy_remote(request, identifier, session_data[0], lambda: services.files.list_directory(identifier, path))
 
     @app.get("/api/servers/{identifier}/paths")
     async def list_saved_paths(identifier: str, _session=Depends(browser_session)):
@@ -505,19 +535,27 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
         name = posixpath.basename(remote_path.rstrip("/")) or "download"
         if name in {".", ".."}:
             raise ValidationError("path must name a file")
+        host = database.get_server(identifier)
         progress, forget = state.progress.open(session_data[0], transfer_id)
+        operation = OperationContext(host["id"], WEB_TRANSFER_OPERATION_SECONDS, session_id=session_data[0], transfer=True)
         try:
             # The JSON body is already read, so a client that leaves is noticed
             # while it waits for a slot and while sftp runs, which then stops.
             async with DisconnectWatch(request) as watch:
-                release = await watch.unless_gone(state.transfers.acquire())
+                operation.canceled = watch.cancel
+                try:
+                    release = await asyncio.wait_for(watch.unless_gone(state.transfers.acquire()), operation.remaining())
+                except asyncio.TimeoutError:
+                    raise OperationTimeout() from None
                 staging = make_staging("dl-")
                 target = staging / "download"
                 try:
-                    result = await asyncio.to_thread(
-                        services.files.download, identifier, remote_path, target,
-                        max_bytes=MAX_WEB_TRANSFER_BYTES, cancel=watch.cancel, meter=progress.begin,
-                    )
+                    state.clean()
+                    if session_data[0] not in state.sessions:
+                        raise HTTPException(status_code=401, detail="browser session is not initialized")
+                    result = await services.operations.run_async(operation, lambda: services.files.download(
+                        identifier, remote_path, target, max_bytes=MAX_WEB_TRANSFER_BYTES,
+                        cancel=watch.cancel, meter=progress.begin), watch.gone)
                     if result["bytes"] > MAX_WEB_TRANSFER_BYTES:
                         raise too_large(MAX_WEB_TRANSFER_BYTES, "get")
                     # From here the response owns the file, the directory and the slot.
@@ -545,21 +583,32 @@ def create_app(database: Database, *, launch_token: str, port: int, launch_url_f
         transfer_id: str | None = Query(None),
     ):
         from .remote_files import validate_web_file_path
+        host = database.get_server(identifier)
         progress, forget = state.progress.open(session_data[0], transfer_id)
+        operation = OperationContext(host["id"], WEB_TRANSFER_OPERATION_SECONDS, session_id=session_data[0], transfer=True)
         try:
-            release = await state.transfers.acquire()
+            try:
+                release = await asyncio.wait_for(state.transfers.acquire(), operation.remaining())
+            except asyncio.TimeoutError:
+                raise OperationTimeout() from None
             try:
                 progress.phase = "receiving"
-                staged = await receive_upload(request, limit=MAX_WEB_TRANSFER_BYTES)
+                try:
+                    staged = await asyncio.wait_for(receive_upload(request, limit=MAX_WEB_TRANSFER_BYTES), operation.remaining())
+                except asyncio.TimeoutError:
+                    raise OperationTimeout() from None
                 try:
                     path = validate_web_file_path(staged.path)
                     progress.phase = "host"
                     # The body is consumed; now a vanished client stops sftp.
                     async with DisconnectWatch(request) as watch:
-                        return await asyncio.to_thread(
-                            services.files.upload, identifier, staged.source, path,
-                            overwrite=staged.overwrite, cancel=watch.cancel, meter=progress.begin,
-                        )
+                        operation.canceled = watch.cancel
+                        state.clean()
+                        if session_data[0] not in state.sessions:
+                            raise HTTPException(status_code=401, detail="browser session is not initialized")
+                        return await services.operations.run_async(operation, lambda: services.files.upload(
+                            identifier, staged.source, path, overwrite=staged.overwrite,
+                            cancel=watch.cancel, meter=progress.begin), watch.gone)
                 finally:
                     staged.discard()
             finally:

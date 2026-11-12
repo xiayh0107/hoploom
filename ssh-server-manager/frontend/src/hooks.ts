@@ -1,18 +1,19 @@
 import {useCallback, useEffect, useRef, useState, type SetStateAction} from 'react';
-import {api} from './api';
+import {acquireMetadata} from './metadataReads';
 
 export function useResource<T>(path: string | null) {
-  const [data, setData] = useState<T | undefined>(), [error, setError] = useState<unknown>(), [loading, setLoading] = useState(false), [revision, setRevision] = useState(0);
+  const [value, setValue] = useState<{path: string; data: T}>(), [error, setError] = useState<unknown>(), [loading, setLoading] = useState(false), [revision, setRevision] = useState(0);
   const sequence = useRef(0);
   useEffect(() => {
-    const request = ++sequence.current, controller = new AbortController();
-    setData(undefined); setError(undefined);
-    if (!path) {setLoading(false); return () => controller.abort();}
+    const request = ++sequence.current;
+    setError(undefined);
+    if (!path) {setLoading(false); return;}
+    const read = acquireMetadata<T>(path);
     setLoading(true);
-    api<T>(path, {signal: controller.signal}).then(value => {if (request === sequence.current) setData(value);}).catch(reason => {if (!controller.signal.aborted && request === sequence.current) setError(reason);}).finally(() => {if (!controller.signal.aborted && request === sequence.current) setLoading(false);});
-    return () => {controller.abort(); sequence.current++;};
+    read.promise.then(data => {if (request === sequence.current) setValue({path, data});}).catch(reason => {if (request === sequence.current) setError(reason);}).finally(() => {if (request === sequence.current) setLoading(false);});
+    return () => {read.release(); sequence.current++;};
   }, [path, revision]);
-  return {data, error, loading, reload: useCallback(() => setRevision(value => value + 1), [])};
+  return {data: value?.path === path ? value.data : undefined, error, loading, reload: useCallback(() => setRevision(value => value + 1), [])};
 }
 export function useHash() {
   const [hash, setHash] = useState(location.hash || '#/hosts');

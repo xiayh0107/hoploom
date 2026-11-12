@@ -29,6 +29,9 @@ def check_source_archive(distribution: Path, expected: str) -> str:
     prefix = f"hoploom-{expected}"
     required = {
         "pyproject.toml", "MANIFEST.in", "README.md", "SKILL.md",
+        "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rust/src/lib.rs",
+        "rust/src/engine.rs", "rust/src/owner.rs", "rust/src/python.rs",
+        "scripts/native-smoke.py", "scripts/wheel-manifest.py",
         "scripts/bootstrap", "scripts/bootstrap.cmd", "scripts/bootstrap.py",
         "scripts/hoploom", "scripts/hoploom.cmd", "scripts/hoploom.py",
         "scripts/serverctl", "scripts/serverctl.cmd", "scripts/serverctl.py",
@@ -42,7 +45,7 @@ def check_source_archive(distribution: Path, expected: str) -> str:
     }
     forbidden_parts = {"node_modules", ".venv", "__pycache__", ".pytest_cache",
                        "test-results", "playwright-report", ".git"}
-    forbidden_roots = {"build", "dist", "tmp", "runtime", "data"}
+    forbidden_roots = {"build", "dist", "target", "tmp", "runtime", "data"}
     forbidden_files = {"ui-state.json", "ssh-server-manager.db", "launch-url"}
     files = set()
     seen = set()
@@ -59,7 +62,8 @@ def check_source_archive(distribution: Path, expected: str) -> str:
             if (any(part in forbidden_parts for part in relative)
                     or (relative and relative[0] in forbidden_roots)
                     or (relative and relative[-1] in forbidden_files)
-                    or relative[:3] == ["tests", "manual", "tmp"]):
+                    or relative[:3] == ["tests", "manual", "tmp"]
+                    or (relative and relative[-1].startswith("_native") and relative[-1].endswith((".so", ".pyd")))):
                 raise RuntimeError("Source archive contains dependency, cache or private runtime artifacts")
             if member.isfile():
                 files.add("/".join(relative))
@@ -72,7 +76,7 @@ def run_smoke(distribution: Path, expected: str) -> None:
     source_prefix = check_source_archive(distribution, expected) if distribution.name.endswith(".tar.gz") else None
     with tempfile.TemporaryDirectory(prefix="ssm-package-") as temporary:
         root = Path(temporary)
-        environment = root / "environment"
+        environment = root / "skill" / ".venv"
         venv.EnvBuilder(with_pip=True).create(environment)
         scripts = environment / ("Scripts" if os.name == "nt" else "bin")
         python = scripts / ("python.exe" if os.name == "nt" else "python")
@@ -86,6 +90,9 @@ def run_smoke(distribution: Path, expected: str) -> None:
                     "SSM_MANAGED_SSH_CONFIG": str(root / "managed.conf")}
         isolated.pop("PYTHONPATH", None)
         isolated.pop("PYTHONHOME", None)
+        isolated.pop("HOPLOOM_EXECUTOR", None)
+        subprocess.run([str(python), "-I", str(Path(__file__).with_name("native-smoke.py")), expected],
+                       cwd=root, env=isolated, check=True, timeout=40)
         if source_prefix:
             # Members were checked above: only regular files/directories under
             # the exact package prefix, with no links or parent-path traversal.
@@ -124,6 +131,21 @@ def run_smoke(distribution: Path, expected: str) -> None:
         legacy = subprocess.run([str(legacy_launcher), "server", "list", "--json"],
                                 cwd=root, env=isolated, capture_output=True, text=True, timeout=30)
         assert legacy.returncode == 0 and json.loads(legacy.stdout) == [] and not legacy.stderr
+        # Skill launchers must use the installed wheel even beside source files
+        # with the same module name. Never let those files hide _native.
+        wrapper_scripts = root / "skill" / "scripts"
+        wrapper_scripts.mkdir(exist_ok=True)
+        shadow = wrapper_scripts / "ssh_server_manager"
+        shadow.mkdir()
+        (shadow / "__init__.py").write_text("raise AssertionError('source shadowed installed wheel')")
+        for name in ("hoploom", "serverctl"):
+            filename = name + (".cmd" if os.name == "nt" else "")
+            wrapper = wrapper_scripts / filename
+            wrapper.write_bytes(Path(__file__).with_name(filename).read_bytes())
+            wrapper.chmod(0o700)
+            wrapped = subprocess.run([str(wrapper), "--version"], cwd=root, env=isolated,
+                                     check=True, capture_output=True, text=True, timeout=10)
+            assert wrapped.stdout.strip() == f"{name} {expected}"
         # Inspect package data through the newly installed interpreter, outside
         # the source tree, so an editable/source import cannot mask omissions.
         metadata = subprocess.run([str(python), "-c",

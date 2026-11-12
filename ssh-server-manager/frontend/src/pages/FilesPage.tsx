@@ -1,12 +1,14 @@
 import {useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent} from 'react';
 import {api, ApiError, json, segment} from '../api';
 import {useDialogState} from '../hooks';
-import type {DirectoryEnrichment, DirectoryEnrichmentEntry, DirectoryEntry, DirectoryListing, Host, RuntimeInfo, SavedPath} from '../types';
+import type {Credential, DirectoryEnrichment, DirectoryEnrichmentEntry, DirectoryEntry, DirectoryListing, Host, RuntimeInfo, SavedPath} from '../types';
 import {enqueueDownload, enqueueUpload, filenameValid, joinRemote, onUploaded, useDownloading} from '../transfers';
 import {Button, EmptyState, ErrorNotice, Icon, Modal, formatBytes as bytes, relativeDate} from '../ui';
+import {connectionIdentities, FolderCache} from './folderCache';
 import './files.css';
 
-type Props = {hosts: Host[]; runtime: RuntimeInfo; initialHostId?: string; initialPath?: string};
+type Props = {hosts: Host[]; credentials?: Credential[]; runtime: RuntimeInfo; initialHostId?: string; initialPath?: string};
+const noCredentials: Credential[] = [];
 type SortKey = 'name' | 'size' | 'modified' | 'permissions' | 'owner';
 type FileTab = {
   id: string; hostId: string; path?: string; filter: string; query: string;
@@ -15,6 +17,7 @@ type FileTab = {
   // True while only the optional precise-metadata request is outstanding; the
   // table is already painted from the SFTP listing.
   enriching?: boolean;
+  identity?: string;
 };
 type UploadDestination = Readonly<{hostId: string; alias: string; directory: string}>;
 type PathEditor = {hostId: string; alias: string; saved?: SavedPath; label: string; path: string; notes: string; error?: unknown};
@@ -42,25 +45,9 @@ function breadcrumb(path: string) {
 // Revisiting a folder paints from here before the network is asked again. It
 // holds no secrets — only names, sizes and modes the server already sent — and
 // it is scoped per host so a host switch never shows another server's files.
-type CachedFolder = {listing: DirectoryListing};
-const folderCache = new Map<string, CachedFolder>();
-const folderCacheLimit = 40;
-const folderCacheKey = (hostId: string, path?: string) => `${hostId}\u0000${path || ''}`;
-function readFolderCache(hostId: string, path?: string) {
-  const key = folderCacheKey(hostId, path), hit = folderCache.get(key);
-  if (!hit) return undefined;
-  // Refresh recency so the entries a user actually revisits survive the cap.
-  folderCache.delete(key); folderCache.set(key, hit);
-  return hit;
-}
-function writeFolderCache(hostId: string, path: string | undefined, listing: DirectoryListing) {
-  // Cache under the path that was asked for and under the absolute path the
-  // server resolved (~ becomes /root), so "Home" and "/root" both hit.
-  for (const key of new Set([folderCacheKey(hostId, path), folderCacheKey(hostId, listing.path)])) {
-    folderCache.delete(key); folderCache.set(key, {listing});
-  }
-  while (folderCache.size > folderCacheLimit) folderCache.delete(folderCache.keys().next().value!);
-}
+const folderCache = new FolderCache();
+// Uploads also invalidate when the Files page is unmounted.
+onUploaded((hostId, directory) => folderCache.invalidate(hostId, directory));
 /** Drop every cached folder; used when the session ends or a test starts. */
 export function clearFolderCache() {folderCache.clear();}
 // Folder names outlive the component but must not outlive the session that was
@@ -81,7 +68,7 @@ const enrichable = (entry: DirectoryEntry) => ({
   name: entry.name, type: entry.type, size: entry.size, uid: entry.uid ?? null, gid: entry.gid ?? null,
 });
 
-export default function FilesPage({hosts, runtime, initialHostId, initialPath}: Props) {
+export default function FilesPage({hosts, credentials = noCredentials, runtime, initialHostId, initialPath}: Props) {
   // Set once when this UI process cannot render its managed SSH config; every
   // host action fails identically, so it is explained once instead of per folder.
   const configProblem = runtime.config_problem || undefined;
@@ -118,9 +105,11 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
   tabsRef.current = tabs;
   const activeTab = tabs.find(tab => tab.id === activeId);
   const host = hosts.find(value => value.id === activeTab?.hostId);
-  const listing = activeTab?.listing;
+  const identities = useMemo(() => connectionIdentities(hosts, credentials), [hosts, credentials]);
+  const identity = host ? identities.get(host.id) : undefined;
+  const listing = activeTab?.identity === identity ? activeTab?.listing : undefined;
   const currentPath = listing?.path || activeTab?.path || '';
-  const context = `${activeId}|${activeTab?.hostId}|${activeTab?.path}|${activeTab?.filter}|${activeTab?.refresh}`;
+  const context = `${activeId}|${activeTab?.hostId}|${identity}|${activeTab?.path}|${activeTab?.filter}|${activeTab?.refresh}`;
   const contextRef = useRef(context);
   contextRef.current = context;
   const maxBytes = runtime.capabilities.max_web_transfer_bytes;
@@ -130,6 +119,10 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
   const updateTab = (id: string, change: Partial<FileTab>) => setTabs(previous => previous.map(tab => tab.id === id ? {...tab, ...change} : tab));
 
   useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
+  useEffect(() => {
+    const changed = folderCache.reconcile(identities);
+    if (changed.size) setTabs(previous => previous.map(tab => changed.has(tab.hostId) ? {...tab, listing: undefined, selected: undefined, error: undefined, loading: true, enriching: false} : tab));
+  }, [identities]);
   // Transfers outlive this page. When an upload lands in a folder a tab shows,
   // that tab revalidates; other tabs revalidate whenever they are opened.
   useEffect(() => onUploaded((hostId, directory) => setTabs(previous => previous.map(tab => tab.hostId === hostId && (tab.listing?.path || tab.path) === directory ? {...tab, refresh: tab.refresh + 1} : tab))), []);
@@ -186,16 +179,16 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
     // A revisited folder paints immediately from cache and then revalidates in
     // the background; a filtered view is a different query, so it never reuses
     // an unfiltered cache entry.
-    const cached = activeTab.query ? undefined : readFolderCache(host.id, activeTab.path);
+    const cached = activeTab.query ? undefined : folderCache.read(host.id, activeTab.path);
     if (cached) {
-      updateTab(tabId, {listing: cached.listing, loading: false, enriching: false, error: undefined, selected: undefined});
+      updateTab(tabId, {listing: cached.listing, identity, loading: false, enriching: false, error: undefined, selected: undefined});
       setVisibleCount(250);
     } else {
       updateTab(tabId, {loading: true, error: undefined, selected: undefined});
     }
     const accept = (result: DirectoryListing) => {
-      if (!activeTab.query) writeFolderCache(host.id, activeTab.path, result);
-      updateTab(tabId, {listing: result, loading: false}); setVisibleCount(250);
+      if (!activeTab.query) folderCache.write(host.id, activeTab.path, result);
+      updateTab(tabId, {listing: result, identity, loading: false}); setVisibleCount(250);
       return result;
     };
     // The optional precise-metadata probe is a second remote round trip, so it
@@ -237,7 +230,7 @@ export default function FilesPage({hosts, runtime, initialHostId, initialPath}: 
         updateTab(tabId, {error: isAbort(error) ? new Error('Folder loading was interrupted. Retry folder to try again.') : error, loading: false});
       });
     return () => {finish(); controller.abort();};
-  }, [activeId, activeTab?.hostId, activeTab?.path, activeTab?.query, activeTab?.filter, activeTab?.refresh, !!host]);
+  }, [activeId, activeTab?.hostId, identity, activeTab?.path, activeTab?.query, activeTab?.filter, activeTab?.refresh, !!host]);
   useEffect(() => {
     if (!host) return;
     const controller = new AbortController(), hostId = host.id;

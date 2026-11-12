@@ -5,6 +5,17 @@ on:
   pull_request:
 
 jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ssh-server-manager
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo fmt --check
+      - run: cargo test --locked --no-default-features
+      - run: cargo clippy --locked --all-targets -- -D warnings
+
   cross-platform:
     strategy:
       fail-fast: false

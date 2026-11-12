@@ -22,7 +22,7 @@ use its Plugins page while it is open.
 Click **Hoploom** in the sidebar, or choose it on the right sidebar's start page.
 It opens in the right sidebar and keeps the conversation and its draft in view;
 the panel's fullscreen control gives it the whole window when needed. Hoploom
-shows in place only when no Session is on screen. The plugin prepares its bundled Hoploom 0.11.0
+shows in place only when no Session is on screen. The plugin prepares its bundled Hoploom 0.12.0
 and private Python runtime in the background. MCP tools can also reuse a compatible
 existing install; the UI always uses the bundled version and the same state directories.
 The first preparation needs internet access and may take a few minutes. The panel
@@ -31,7 +31,7 @@ The original Hoploom UI appears directly inside dsh, including hosts, ports, tag
 skills, credentials, audit and file management. Add hosts and credentials there,
 then ask the agent to list hosts, resolve jump routes or find working directories.
 
-Automatic preparation supports macOS, Windows and Linux (glibc), on x64 and
+Automatic preparation supports macOS, Windows and Linux (glibc or musl), on x64 and
 ARM64. It downloads checksum-pinned uv from Astral's official GitHub release,
 uses uv-managed Python, and installs dependencies from PyPI. The Hoploom wheel
 is included in the npm package. No Git checkout, system Python change or shell
@@ -138,7 +138,10 @@ and the [official dsh APIs](https://github.com/deepseek-ai/deepseek-harness).
 2. The host entry validates configuration and registers the recovery tool and
    authenticated owner-only Fetch routes. Backend preparation runs asynchronously,
    so the client entry remains available when it fails.
-3. A verified Python wheel is built from tracked public backend source only.
+3. Eight verified native Python wheels are built from the same public source
+   commit as the plugin. The actual managed Python supplies compatible tags;
+   selection rejects mismatched tags, then verifies SHA-256 and native version.
+   Cache identity includes the platform, filename, version and wheel digest.
    uv archives are pinned to version and SHA256, extracted only for the expected
    executable, and kept in a private directory. Each new environment is installed
    separately; a verified successful install atomically updates its pointer.
@@ -174,10 +177,11 @@ npm ci --prefix dsh-hoploom
 npm run build --prefix dsh-hoploom
 HOPLOOM_BUILD_PYTHON=/absolute/path/to/python npm run build:backend --prefix dsh-hoploom
 HOPLOOM_TEST_PYTHON=/absolute/path/to/python HOPLOOM_TEST_BOOTSTRAP=1 npm test --prefix dsh-hoploom
-npm pack ./dsh-hoploom --pack-destination /absolute/path/to/output
+# A local single-platform build is for development only.
+npm pack ./dsh-hoploom --ignore-scripts --pack-destination /absolute/path/to/output
 ```
 
-The build Python needs `build` and Hoploom's dependencies. Tests isolate state
+The source build needs pinned Rust, `build` and Hoploom's dependencies. Tests isolate state
 and exercise real MCP tools, permissions, cleanup, runtime downloads, concurrent
 installation, cancellation, offline reuse, the built client panel and embedded
 sessions/CSRF/streaming. Frontend changes also require the frontend build and
@@ -187,6 +191,13 @@ on macOS, Linux and Windows. Before release, install the tarball into a disposab
 the right sidebar's start page, embedded UI operations, setup status
 and tool discovery.
 Never use production inventory for release tests.
+
+For a formal tarball, download this clean commit's `native-dist` workflow
+artifact and run `HOPLOOM_WHEEL_DIR=/absolute/path/to/native-dist npm run
+build:backend --prefix dsh-hoploom`, then `npm pack ./dsh-hoploom`. `prepack`
+requires all eight wheels, verifies their hashes/source commit and never
+rebuilds or shrinks the collection to the local platform. The release workflow
+tests the collection and plugin, then publishes that verified tarball.
 
 `engines.dsh` admits the dsh 0.2.x line (`>=0.2.1-rc.5 <0.3.0-0`). dsh compares
 prereleases, so the `-0` bound keeps 0.3 prereleases out. Before widening it, run
@@ -206,8 +217,8 @@ through npm Trusted Publishing: the package's npmjs.com settings trust owner
 `xiayh0107`, repository `hoploom`, workflow `publish-dsh.yml` and environment
 `npm`, allowing `npm publish`. No npm token is stored. Renaming the workflow file
 or environment requires a new trusted publisher, which must publish successfully
-within two days of creation. The workflow checks the version, rebuilds, runs the
-plugin checks and publishes with provenance.
+within two days of creation. The workflow checks the version, builds the entire
+wheel collection, runs plugin checks and publishes the verified tarball with provenance.
 
 Verify the registry version, integrity and an actual fresh installation, then
 attach the registry's tarball (`npm pack dsh-hoploom@X.Y.Z`) to the GitHub

@@ -7,6 +7,7 @@ No request bodies, session identifiers or credentials are written to output.
 from __future__ import annotations
 
 import contextvars
+from contextlib import asynccontextmanager
 import ipaddress
 import json
 import re
@@ -81,6 +82,7 @@ class PrivateUi:
         if scope['path'] == '/bridge/release' and scope['method'] == 'POST':
             saved = self.frames.pop(frame, None)
             if saved:
+                state.operations.cancel_session(saved[0])
                 state.sessions.pop(saved[0], None)
                 for auth in state.auth.origins.values():
                     auth.pending.pop(saved[0], None)
@@ -125,9 +127,13 @@ def main():
     app = create_app(Database(database_path()), launch_token=secrets.token_urlsafe(32), port=port)
     wrapped = PrivateUi(app, key)
     # The port is public metadata; the transport key never leaves private stdin.
-    @app.on_event('startup')
-    async def ready():
-        print(json.dumps({'port': port}), flush=True)
+    lifecycle = app.router.lifespan_context
+    @asynccontextmanager
+    async def ready(application):
+        async with lifecycle(application):
+            print(json.dumps({'port': port}), flush=True)
+            yield
+    app.router.lifespan_context = ready
     server = uvicorn.Server(uvicorn.Config(wrapped, host='127.0.0.1', port=port,
         log_level='critical', access_log=False, timeout_graceful_shutdown=3))
     try:

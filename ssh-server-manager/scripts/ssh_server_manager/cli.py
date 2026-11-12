@@ -24,6 +24,7 @@ from .mounts import unmount as unmount_path
 from .paths import database_path, managed_ssh_config_path, original_ssh_config_path
 from .ssh_config import SSHConfigError, render_config
 from .ssh_runner import SSHError, SSHRunner
+from .operations import OperationError
 from .validation import (
     ValidationError,
     parse_remote_ref,
@@ -940,6 +941,7 @@ def _audit_health() -> dict[str, Any]:
 
 
 def run_doctor(database: Database) -> dict[str, Any]:
+    from .execution import executor_status
     ssh_path = shutil.which("ssh")
     checks: dict[str, Any] = {
         "version": {"ok": True, "hoploom": __version__, "serverctl": __version__},
@@ -962,6 +964,7 @@ def run_doctor(database: Database) -> dict[str, Any]:
         "geoip": geoip_capability(),
         "tunnels": _tunnel_health(),
         "audit": _audit_health(),
+        "executor": executor_status(),
     }
     try:
         checks["vault"] = {"ok": True, **get_vault().diagnose()}
@@ -1621,10 +1624,11 @@ def main(argv: Sequence[str] | None = None, *, prog: str = "hoploom") -> int:
         args.remote_command = remote_command
     try:
         return handle(args)
-    except (ValidationError, VaultError, DatabaseError, SSHConfigError, SSHError, ValueError) as exc:
+    except (ValidationError, VaultError, DatabaseError, SSHConfigError, SSHError, OperationError, ValueError) as exc:
         as_json = bool(getattr(args, "json", False))
         if as_json:
-            print(json.dumps({"ok": False, "error": exc.__class__.__name__, "message": str(exc)}, ensure_ascii=False))
+            print(json.dumps({"ok": False, "error": exc.__class__.__name__, "message": str(exc),
+                              **({"error_code": exc.code} if isinstance(exc, OperationError) else {})}, ensure_ascii=False))
         else:
             print(f"error: {exc}", file=sys.stderr)
         return 2

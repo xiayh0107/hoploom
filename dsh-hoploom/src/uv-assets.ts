@@ -10,8 +10,8 @@ export const uvAssets: Record<string, { filename: string; sha256: string }> = {
     "sha256": "c2426c0c8e28b53d8c440e47a18d96ad4db51e159866c0e81435b196d7f0081c"
   },
   "linux-arm64": {
-    "filename": "uv-aarch64-unknown-linux-gnu.tar.gz",
-    "sha256": "229e194255c7958d86d56e8790d969a6f74736592133f0dfd0076f754c642c1d"
+    "filename": "uv-aarch64-unknown-linux-musl.tar.gz",
+    "sha256": "819692e404d23e5aae6bc44c0e260f1f5492fd1910ab4693b2c650f926dbe800"
   },
   "darwin-x64": {
     "filename": "uv-x86_64-apple-darwin.tar.gz",
@@ -22,7 +22,7 @@ export const uvAssets: Record<string, { filename: string; sha256: string }> = {
     "sha256": "a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f"
   },
   "linux-x64": {
-    "filename": "uv-x86_64-unknown-linux-gnu.tar.gz",
-    "sha256": "f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645"
+    "filename": "uv-x86_64-unknown-linux-musl.tar.gz",
+    "sha256": "5d61f26b6c7213779eda90edc6971ea6b0b796bfb8d49a574c8ad69b59838548"
   }
 }

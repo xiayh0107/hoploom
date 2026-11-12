@@ -12,6 +12,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as plugin from '../lib/index.js'
 import { extractUv } from '../lib/archive.js'
 import { bundledWheel, downloadVerified, installationLock, prepareManagedBackend } from '../lib/managed.js'
+import { pythonTags, readWheelManifest } from '../lib/wheels.js'
 import { checkBackend } from '../lib/backend.js'
 import { bridgeConfig, Config } from '../lib/config.js'
 import { runLocal, startLocal } from '../lib/process.js'
@@ -82,11 +83,12 @@ test('cancellation stops a child before cleanup; an already-cancelled call spawn
 
 test('bundled wheel checksum rejects tampering', async t => {
   const root = await temporary(t)
-  const { path, manifest } = await bundledWheel()
+  const tags = await pythonTags(process.env.HOPLOOM_TEST_PYTHON || (process.platform === 'win32' ? 'python' : 'python3'), new AbortController().signal)
+  const { path, manifest } = await bundledWheel(tags)
   assert.match(path, /hoploom-.*\.whl$/)
-  await writeFile(join(root, 'manifest.json'), JSON.stringify(manifest))
+  await writeFile(join(root, 'manifest.json'), JSON.stringify(await readWheelManifest()))
   await writeFile(join(root, manifest.filename), 'not the packaged wheel')
-  await assert.rejects(bundledWheel(root), { code: 'integrity' })
+  await assert.rejects(bundledWheel(tags, root), { code: 'integrity' })
 })
 
 test('fresh managed install downloads its own Python and survives an offline second start', {

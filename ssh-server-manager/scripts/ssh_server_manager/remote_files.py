@@ -60,6 +60,11 @@ def run_metadata_command(command: list[str], *, request: str, env: dict[str, str
     Separate readers work on Windows pipes as well as POSIX. The main thread
     enforces the deadline even if SSH never consumes the bounded stdin request.
     """
+    from .operations import current_operation
+    if current_operation() is not None:
+        from .execution import capture_command
+        return capture_command(command, input_text=request, env=env, timeout=timeout,
+                               stdout_limit=MAX_METADATA_BYTES, stderr_limit=65536), False
     process = subprocess.Popen(literal_config_args(command), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     output, diagnostics = bytearray(), bytearray()
     exceeded = threading.Event()

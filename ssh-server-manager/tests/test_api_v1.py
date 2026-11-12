@@ -456,7 +456,7 @@ def test_bulk_observation_backfills_facts_and_retains_previous_on_probe_failure(
     previous = client.get("/api/v1/hosts/other").json()["facts"]
     monkeypatch.setattr("ssh_server_manager.ssh_runner.collect_probe_metadata", lambda *args, **kwargs: {})
     monkeypatch.setattr(SSHRunner, "_environment", lambda *args: {})
-    monkeypatch.setattr("ssh_server_manager.ssh_runner.subprocess.run", lambda command, **kwargs:
+    monkeypatch.setattr(SSHRunner, "_capture", lambda _self, command, **kwargs:
                         subprocess.CompletedProcess(command, 0, "", ""))
 
     def probe(_self, host, *, timeout):

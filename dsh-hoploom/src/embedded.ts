@@ -96,7 +96,7 @@ export class EmbeddedUi {
       const outgoing = httpRequest(target, { method: releasing ? 'POST' : method, headers, signal: request.signal }, incoming => {
         if (releasing) this.frames.delete(id)
         const responseHeaders = new Headers({ 'cache-control': 'no-store' })
-        for (const name of ['content-type', 'content-disposition']) {
+        for (const name of ['content-type', 'content-disposition', 'content-length']) {
           const value = incoming.headers[name]
           if (typeof value === 'string') responseHeaders.set(name, value)
         }
