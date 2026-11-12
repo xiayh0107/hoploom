@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.12.0 — 2026-11-12
+
 - Ship the native executor in the unified maturin package, with pinned Rust and
   Cargo dependencies, an abi3 Python 3.10+ wheel matrix across eight platform /
   architecture combinations, rebuilt-source installation checks and a complete
@@ -24,6 +26,8 @@
   share nested-operation permits and namespace probes, and keep shared SSH
   masters outside request-owned POSIX groups/Windows Jobs. Disconnect/session
   cleanup stops only the request and retains independent staging cleanup.
+  Batch waiters share the same queue budget; Python supervision also counts
+  time before its worker starts, without spawning already expired work.
 
 - Support Git for Windows' MSYS OpenSSH in credential tests and
   `credential rotate`. The probe renders `LocalCommand` and `ProxyCommand`

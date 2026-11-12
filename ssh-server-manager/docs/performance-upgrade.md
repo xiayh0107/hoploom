@@ -10,10 +10,11 @@ starting point, not proof that its complete milestone is finished.
 - [x] Linear host indexing/grouping, privacy-aware search, accessible windowing above 200 hosts.
 - [x] Bounded directory cache, identity and upload invalidation, retained metadata on refresh.
 - [x] Shared operation/execution contract, bounded scheduling and request cancellation.
-- [ ] Rust/PyO3/Tokio executor with equivalent Python rollback and platform process isolation.
+- [x] Rust/PyO3/Tokio executor with equivalent Python rollback and platform process isolation.
 - [ ] Native build, platform wheels/sdist, DSH selection and offline cache, installers and CI.
 - [x] Doctor/CLI/Skill/API documentation and generated contracts/assets.
 - [ ] Full behavioral, cancellation, packaging and browser regressions; review against every requirement.
+- [ ] Publish Python/plugin releases and prepare the Homebrew update from PyPI's actual sdist.
 
 ## Original agreed plan
 
@@ -24,7 +25,7 @@ and immutable request configs have independent owners. Native wheel/sdist
 builds and clean macOS installs pass, including both CLI names, binary results,
 timeout/cancel behavior, built UI and Skill source-shadowing protection.
 
-Local evidence: 927 Python passes plus four new packaging checks, 144 frontend
+Local evidence: 927 Python passes plus four new packaging checks, 146 frontend
 unit tests, all 31 browser cases (29 in the full run and two corrected ARIA
 header assertions rerun), and 30 plugin checks with one platform-only skip,
 including managed Python download and offline reuse. Source archive checks,
@@ -32,9 +33,12 @@ rebuild/install and the populated 0.8.0 upgrade have separate smoke checks.
 Rust core tests, fmt/clippy and a Windows cross-compilation check pass.
 
 The eight-target native pipeline, complete-manifest/prepack gate, actual Python
-tag selection and published-wheel installers are implemented. Actual remote
-Windows/Linux/ARM and musl execution, final release artifacts and publication
-still need their workflow evidence. This is not a completed release.
+tag selection and published-wheel installers are implemented. Commit c91e752's
+workflow 43318513235 passed all eight installed-wheel execution checks, sdist
+rebuild/install, complete artifact collection and macOS/Linux/Windows plugin
+checks including managed Python, offline reuse and formal prepack. The final
+batch-queue fix and upstream PR #20 integration need their final regression run.
+Publication is still pending; this is not a completed release.
 
 # Hoploom 性能与交互体验升级计划
 

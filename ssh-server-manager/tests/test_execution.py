@@ -134,6 +134,22 @@ def test_python_deadline_includes_pending_supervision_before_process_start(monke
     assert result.reason == 'timeout' and result.pid is None and result.elapsed_ms == 1000
 
 
+@pytest.mark.skipif(os.name != 'nt', reason='Windows OpenSSH serialization contract')
+@pytest.mark.parametrize('client', ['native', 'git'])
+def test_windows_ssh_config_arguments_survive_native_and_msys_parsers(executor, tmp_path, monkeypatch, client):
+    from pathlib import Path
+    executable = (Path(os.environ.get('WINDIR', r'C:\Windows')) / 'System32/OpenSSH/ssh.exe' if client == 'native'
+                  else Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Git/usr/bin/ssh.exe')
+    if not executable.is_file():
+        pytest.skip('This runner does not supply the selected SSH client')
+    config = tmp_path / 'native config ! &(fixture) 空间.conf'
+    config.write_text('Host native-fixture\n  HostName fixture.invalid\n  User fixture\n  StrictHostKeyChecking yes\n', encoding='utf-8')
+    monkeypatch.setenv('HOPLOOM_EXECUTOR', executor.name)
+    result = capture_command([str(executable), '-F', str(config), '-G', 'native-fixture'], env=dict(os.environ), timeout=8)
+    assert result.returncode == 0
+    assert 'hostname fixture.invalid\n' in result.stdout and 'user fixture\n' in result.stdout
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows Job Object descendant verification")
 def test_job_cancellation_waits_for_a_real_descendant_to_exit(executor, tmp_path):
     import ctypes

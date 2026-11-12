@@ -56,6 +56,14 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           Remove-Item Env:SSM_TEST_SSH_CLIENT
+      - name: Parse the Windows installer without executing it
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ssmTokens = $null
+          $ssmParseErrors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile("$PWD/install.ps1", [ref]$ssmTokens, [ref]$ssmParseErrors)
+          if ($ssmParseErrors.Count) { throw "Windows installer syntax is invalid" }
       - name: Repeat independent Windows credential probes
         if: matrix.os == 'windows-latest'
         shell: pwsh
