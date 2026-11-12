@@ -170,3 +170,30 @@ def test_bulk_checks_share_a_four_operation_cap_without_blocking_single_checks()
         await asyncio.gather(*tasks)
         assert scheduler.snapshot()["active"] == 0
     asyncio.run(scenario())
+
+
+def test_batches_share_the_queue_budget_and_do_not_hold_idle_active_permits():
+    async def scenario():
+        scheduler = OperationScheduler(active=2, queued=1)
+        ready = asyncio.Queue()
+        finish = asyncio.Event()
+        async def work(host, batch):
+            operation = OperationContext(host, 3, bulk=True, batch_id=batch, batch_limit=1)
+            async with scheduler.async_scope(operation):
+                ready.put_nowait(host)
+                await finish.wait()
+        first = asyncio.create_task(work('first', 'batch-a'))
+        assert await asyncio.wait_for(ready.get(), 1) == 'first'
+        pending = asyncio.create_task(work('pending', 'batch-a'))
+        await asyncio.sleep(0)
+        assert scheduler.snapshot() == {'active': 1, 'queued': 1, 'transfers': 0}
+        other = asyncio.create_task(work('other', 'batch-b'))
+        assert await asyncio.wait_for(ready.get(), 1) == 'other'
+        assert scheduler.snapshot() == {'active': 2, 'queued': 1, 'transfers': 0}
+        with pytest.raises(OperationBusy):
+            async with scheduler.async_scope(OperationContext('overflow', 1, bulk=True, batch_id='batch-c')):
+                pytest.fail('every batch must use the shared queue budget')
+        finish.set()
+        await asyncio.gather(first, pending, other)
+        assert scheduler.snapshot() == {'active': 0, 'queued': 0, 'transfers': 0}
+    asyncio.run(scenario())

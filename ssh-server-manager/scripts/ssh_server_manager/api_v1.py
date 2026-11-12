@@ -6,6 +6,7 @@ import asyncio
 import json
 import queue
 import threading
+import uuid
 from datetime import datetime, timezone
 from fastapi.responses import StreamingResponse
 
@@ -67,14 +68,14 @@ def build_router(
         for identifier in payload.identifiers:
             host = services.database.get_server(identifier)
             hosts[host["id"]] = host
-        gate = asyncio.Semaphore(payload.concurrency)
+        batch_id = uuid.uuid4().hex
         function = services.diagnostics.observe if observe else services.diagnostics.test
         timeout = (payload.timeout + 5) * (6 if observe else 1) + 2
         async with DisconnectWatch(request) as watch:
             async def one(host):
-                operation = OperationContext(host["id"], timeout, session_id=session_id, canceled=watch.cancel, bulk=True)
-                async with gate:
-                    return await run_owned(lambda: function(host["id"], timeout=payload.timeout), operation, watch)
+                operation = OperationContext(host["id"], timeout, session_id=session_id, canceled=watch.cancel,
+                                             bulk=True, batch_id=batch_id, batch_limit=payload.concurrency)
+                return await run_owned(lambda: function(host["id"], timeout=payload.timeout), operation, watch)
             tasks = [asyncio.create_task(one(host)) for host in hosts.values()]
             try:
                 results = await asyncio.gather(*tasks, return_exceptions=True)

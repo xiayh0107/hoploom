@@ -67,7 +67,8 @@ waits detach from Python; asynchronous completion is notified without a Python
 polling task or waiter thread per Rust process.
 
 One operation covers queue waiting, probes and fallback, with eight active
-operations, two per host and at most 64 queued callers. Nested substeps reuse
+operations, two per host and at most 64 queued callers, including batch waiters.
+Batch concurrency is enforced within that same scheduler. Nested substeps reuse
 the parent's permit. Directory requests have a 45-second total deadline.
 Cancellation, disconnect and session expiry stop only the owning operation;
 canceled work does not record a host failure. Shared namespace probes retain
@@ -177,9 +178,10 @@ Versioned transfer results omit the internal staging path.
 Web transfers share two server slots; eight more requests wait, and beyond that
 the routes answer `503` with `error_code: busy` and `Retry-After`. An upload is
 read only after its session, CSRF token and slot are confirmed. While SFTP runs,
-Hoploom watches the request: a browser disconnect terminates that sftp process
-alone (never its process group, so a shared ControlMaster and its ProxyJump
-helper keep serving other requests), removes the staged copy and frees the slot.
+Hoploom watches the request: a browser disconnect terminates the request-owned
+SFTP process group or Windows Job, removes its staged copy and frees the slot.
+Shared ControlMasters and their ProxyJump helpers have separate owners and keep
+serving other requests.
 A client may name the request with `transfer_id` (16–64 characters of
 `A-Za-z0-9_-`). While it runs, `GET /api/v1/transfers/{transfer_id}` from the
 same browser session returns `phase` (`waiting`, `receiving` or `host`),

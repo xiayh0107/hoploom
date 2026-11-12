@@ -84,6 +84,8 @@ class OperationContext:
     session_id: str | None = field(default=None, repr=False)
     transfer: bool = False
     bulk: bool = False
+    batch_id: str | None = field(default=None, repr=False)
+    batch_limit: int = 4
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     canceled: CancellationToken = field(default_factory=CancellationToken, repr=False)
     deadline: float = field(init=False, repr=False)
@@ -92,6 +94,8 @@ class OperationContext:
     def __post_init__(self) -> None:
         if not 0 < self.timeout <= 86400:
             raise ValueError("Operation timeout must be between 0 and 86400 seconds")
+        if not 1 <= self.batch_limit <= 4:
+            raise ValueError("Batch concurrency must be between 1 and 4")
         self.deadline = time.monotonic() + self.timeout
 
     def cancel(self) -> None:
@@ -150,6 +154,7 @@ class OperationScheduler:
         self._hosts: Counter[str] = Counter()
         self._transfers = 0
         self._bulk = 0
+        self._batches: Counter[str] = Counter()
         self.bulk_limit = bulk_checks
         self._queue: deque[OperationContext] = deque()
         self._closed = False
@@ -166,7 +171,8 @@ class OperationScheduler:
     def _eligible(self, operation: OperationContext) -> bool:
         return (len(self._active) < self.active_limit and self._hosts[operation.host_id] < self.host_limit
                 and (not operation.transfer or self._transfers < self.transfer_limit)
-                and (not operation.bulk or self._bulk < self.bulk_limit))
+                and (not operation.bulk or self._bulk < self.bulk_limit)
+                and (operation.batch_id is None or self._batches[operation.batch_id] < operation.batch_limit))
 
     @contextmanager
     def scope(self, operation: OperationContext) -> Iterator[OperationContext]:
@@ -198,6 +204,8 @@ class OperationScheduler:
                 self._hosts[operation.host_id] += 1
                 self._transfers += int(operation.transfer)
                 self._bulk += int(operation.bulk)
+                if operation.batch_id is not None:
+                    self._batches[operation.batch_id] += 1
             finally:
                 self._queue.remove(operation)
                 self._notify()
@@ -215,6 +223,10 @@ class OperationScheduler:
                     del self._hosts[operation.host_id]
                 self._transfers -= int(operation.transfer)
                 self._bulk -= int(operation.bulk)
+                if operation.batch_id is not None:
+                    self._batches[operation.batch_id] -= 1
+                    if not self._batches[operation.batch_id]:
+                        del self._batches[operation.batch_id]
                 self._notify()
 
     @asynccontextmanager
@@ -254,6 +266,8 @@ class OperationScheduler:
                         self._hosts[operation.host_id] += 1
                         self._transfers += int(operation.transfer)
                         self._bulk += int(operation.bulk)
+                        if operation.batch_id is not None:
+                            self._batches[operation.batch_id] += 1
                         admitted = True
                         self._async_waiters.discard(waiter)
                         self._notify()
@@ -279,6 +293,10 @@ class OperationScheduler:
                         del self._hosts[operation.host_id]
                     self._transfers -= int(operation.transfer)
                     self._bulk -= int(operation.bulk)
+                    if operation.batch_id is not None:
+                        self._batches[operation.batch_id] -= 1
+                        if not self._batches[operation.batch_id]:
+                            del self._batches[operation.batch_id]
                 elif operation in self._queue:
                     self._queue.remove(operation)
                 self._notify()
