@@ -51,7 +51,7 @@ def test_cancel_notifies_completion_and_preserves_an_unrelated_operation(executo
     canceled.cancel()
     assert canceled.wait(5).reason == "canceled"
     assert done.wait(1)
-    assert unrelated.wait(5).stdout == b"unrelated\n"
+    assert unrelated.wait(5).stdout == b"unrelated" + os.linesep.encode("ascii")
 
 
 def test_operation_cancellation_propagates_to_its_task(executor):
@@ -64,7 +64,7 @@ def test_operation_cancellation_propagates_to_its_task(executor):
 def test_async_completion_uses_notification_and_async_cancel_stops_the_process(executor):
     async def run():
         task = executor.start(command("print('async')"))
-        assert (await task.result_async()).stdout == b"async\n"
+        assert (await task.result_async()).stdout == b"async" + os.linesep.encode("ascii")
         stopped = executor.start(command("import time;time.sleep(60)"))
         future = asyncio.create_task(stopped.result_async())
         await asyncio.sleep(0)

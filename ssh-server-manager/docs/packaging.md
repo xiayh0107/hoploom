@@ -55,7 +55,7 @@ curl -fsSL -o "$sdist" \
   https://files.pythonhosted.org/packages/source/h/hoploom/hoploom-X.Y.Z.tar.gz
 scripts/prepare_packaging "$sdist"
 cp dist/packaging/homebrew/hoploom.rb "$(brew --repository xiayh0107/tap)/Formula/"
-brew update-python-resources xiayh0107/tap/hoploom
+brew update-python-resources --extra-packages maturin==1.16.0 xiayh0107/tap/hoploom
 ```
 
 Then commit on a branch in the tap and open a pull request.
