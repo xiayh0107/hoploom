@@ -13,6 +13,20 @@ pub struct Owner {
 #[cfg(windows)]
 unsafe impl Send for Owner {}
 
+#[cfg(windows)]
+struct ProcessHandles(Vec<windows_sys::Win32::Foundation::HANDLE>);
+// These are owned synchronization references, closed only after polling ends.
+#[cfg(windows)]
+unsafe impl Send for ProcessHandles {}
+#[cfg(windows)]
+impl Drop for ProcessHandles {
+    fn drop(&mut self) {
+        for handle in &self.0 {
+            unsafe { windows_sys::Win32::Foundation::CloseHandle(*handle) };
+        }
+    }
+}
+
 impl Owner {
     pub fn configure(command: &mut Command, tree: bool) {
         if !tree {
@@ -188,14 +202,90 @@ impl Owner {
         }
         Ok(())
     }
+    fn job_members(&self) -> io::Result<ProcessHandles> {
+        use std::mem::{size_of, zeroed};
+        use windows_sys::Win32::{
+            Foundation::{ERROR_INVALID_PARAMETER, ERROR_MORE_DATA},
+            System::{JobObjects::*, Threading::*},
+        };
+        unsafe {
+            // Seal creation before enumerating. Retain KILL_ON_JOB_CLOSE;
+            // lowering the active limit does not remove existing members.
+            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
+            limits.BasicLimitInformation.LimitFlags =
+                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+            limits.BasicLimitInformation.ActiveProcessLimit = 1;
+            if SetInformationJobObject(
+                self.job,
+                JobObjectExtendedLimitInformation,
+                &limits as *const _ as _,
+                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            ) == 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+            let mut capacity = 16;
+            while capacity <= 65536 {
+                // u64 storage keeps the variable-length structure aligned.
+                let mut buffer = vec![0_u64; 1 + capacity];
+                let list = buffer.as_mut_ptr() as *mut JOBOBJECT_BASIC_PROCESS_ID_LIST;
+                let ok = QueryInformationJobObject(
+                    self.job,
+                    JobObjectBasicProcessIdList,
+                    list as _,
+                    (buffer.len() * size_of::<u64>()) as u32,
+                    std::ptr::null_mut(),
+                );
+                let count = (*list).NumberOfProcessIdsInList as usize;
+                let assigned = (*list).NumberOfAssignedProcesses as usize;
+                if ok != 0 && count <= capacity && assigned <= capacity {
+                    let mut members = ProcessHandles(Vec::with_capacity(count));
+                    for pid in std::slice::from_raw_parts((*list).ProcessIdList.as_ptr(), count) {
+                        let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, *pid as u32);
+                        if !handle.is_null() {
+                            members.0.push(handle);
+                        } else {
+                            let error = io::Error::last_os_error();
+                            if error.raw_os_error() != Some(ERROR_INVALID_PARAMETER as i32) {
+                                return Err(error);
+                            }
+                        }
+                    }
+                    return Ok(members);
+                }
+                if ok == 0 {
+                    let error = io::Error::last_os_error();
+                    if error.raw_os_error() != Some(ERROR_MORE_DATA as i32) {
+                        return Err(error);
+                    }
+                }
+                capacity = (capacity * 2).max(assigned);
+            }
+        }
+        Err(io::Error::other(
+            "Request job membership exceeds cleanup limit",
+        ))
+    }
     async fn stop_job(&mut self) -> io::Result<()> {
         use std::mem::{size_of, zeroed};
-        use windows_sys::Win32::System::JobObjects::*;
+        use windows_sys::Win32::{
+            Foundation::{WAIT_FAILED, WAIT_OBJECT_0},
+            System::{JobObjects::*, Threading::WaitForSingleObject},
+        };
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+        let members = self.job_members()?;
         if unsafe { TerminateJobObject(self.job, 1) } == 0 {
             return Err(io::Error::last_os_error());
         }
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
         loop {
+            let mut exited = true;
+            for handle in &members.0 {
+                let status = unsafe { WaitForSingleObject(*handle, 0) };
+                if status == WAIT_FAILED {
+                    return Err(io::Error::last_os_error());
+                }
+                exited &= status == WAIT_OBJECT_0;
+            }
             let mut status: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = unsafe { zeroed() };
             if unsafe {
                 QueryInformationJobObject(
@@ -209,7 +299,7 @@ impl Owner {
             {
                 return Err(io::Error::last_os_error());
             }
-            if status.ActiveProcesses == 0 {
+            if exited && status.ActiveProcesses == 0 {
                 return Ok(());
             }
             if tokio::time::Instant::now() >= deadline {

@@ -155,29 +155,30 @@ def test_job_cancellation_waits_for_a_real_descendant_to_exit(executor, tmp_path
     import ctypes
     from ctypes import wintypes
     import time
-    marker = tmp_path / "descendant.pid"
-    child = f"import os,time,pathlib;pathlib.Path({str(marker)!r}).write_text(str(os.getpid()));time.sleep(60)"
-    parent = f"import subprocess,sys,time;subprocess.Popen([sys.executable,'-c',{child!r}]);time.sleep(60)"
-    task = executor.start(command(parent))
-    try:
-        deadline = time.monotonic() + 5
-        while not marker.exists() and time.monotonic() < deadline:
-            time.sleep(.02)
-        pid = int(marker.read_text())
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-        kernel.OpenProcess.restype = wintypes.HANDLE
-        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-        handle = kernel.OpenProcess(0x00100000, False, pid)
-        assert handle
+    for attempt in range(10):
+        marker = tmp_path / f"descendant-{attempt}.pid"
+        child = f"import os,time,pathlib;p=pathlib.Path({str(marker)!r});q=p.with_suffix('.tmp');q.write_text(str(os.getpid()));q.replace(p);time.sleep(60)"
+        parent = f"import subprocess,sys,time;subprocess.Popen([sys.executable,'-c',{child!r}]);time.sleep(60)"
+        task = executor.start(command(parent))
         try:
-            assert kernel.WaitForSingleObject(handle, 0) == 258
-            task.cancel()
-            assert task.wait(8).reason == "canceled"
-            assert kernel.WaitForSingleObject(handle, 0) == 0
+            deadline = time.monotonic() + 5
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(.02)
+            pid = int(marker.read_text())
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel.OpenProcess.restype = wintypes.HANDLE
+            kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel.OpenProcess(0x00100000, False, pid)
+            assert handle
+            try:
+                assert kernel.WaitForSingleObject(handle, 0) == 258
+                task.cancel()
+                assert task.wait(8).reason == "canceled"
+                assert kernel.WaitForSingleObject(handle, 0) == 0
+            finally:
+                kernel.CloseHandle(handle)
         finally:
-            kernel.CloseHandle(handle)
-    finally:
-        task.cancel()
-        task.wait(8)
+            task.cancel()
+            task.wait(8)
