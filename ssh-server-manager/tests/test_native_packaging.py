@@ -81,8 +81,15 @@ def test_release_gate_requires_all_eight_native_targets_and_consistent_tags(tmp_
         checker.manifest(tmp_path, __version__, 'a' * 40, complete=True)
     for platform in platforms[1:]:
         make_wheel(tmp_path, platform)
+    musl = tmp_path / f'hoploom-{__version__}-cp310-abi3-musllinux_1_2_aarch64.whl'
+    with zipfile.ZipFile(musl, 'a') as archive:
+        archive.writestr('hoploom.libs/libgcc_s-0bf60adc.so.1', b'synthetic-runtime-library')
     manifest = checker.manifest(tmp_path, __version__, 'a' * 40, complete=True)
     assert {wheel['target'] for wheel in manifest['wheels']} == checker.TARGETS
+    with zipfile.ZipFile(musl, 'a') as archive:
+        archive.writestr('hoploom.libs/private-state.json', b'not a runtime library')
+    with pytest.raises(ValueError, match='Unexpected wheel member'):
+        checker.wheel_record(musl, __version__)
     make_wheel(tmp_path, platforms[0], metadata_platform='win_amd64')
     with pytest.raises(ValueError, match='metadata mismatch'):
         checker.wheel_record(first, __version__)

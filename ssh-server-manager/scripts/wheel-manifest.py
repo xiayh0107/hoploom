@@ -35,11 +35,18 @@ def wheel_record(path: Path, version: str) -> dict:
     if len(targets) != 1:
         raise ValueError(f"Ambiguous platform wheel: {path.name}")
     info = f"hoploom-{version}.dist-info"
+    def public_member(name: str) -> bool:
+        if name.startswith(("ssh_server_manager/", info + "/")):
+            return True
+        # Maturin repairs musl wheels by bundling the GCC runtime they need.
+        # Permit only native shared libraries in that wheel-specific directory.
+        return ((name == "hoploom.libs/" or re.fullmatch(r"hoploom\.libs/lib[a-zA-Z0-9_.-]+\.so(?:\.\d+)*", name) is not None)
+                and all(platform.startswith(("manylinux", "musllinux")) for platform in platforms))
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
         if len(names) != len(set(names)) or any(
             PurePosixPath(name).is_absolute() or "\\" in name or ".." in PurePosixPath(name).parts
-            or not name.startswith(("ssh_server_manager/", info + "/"))
+            or not public_member(name)
             or "/__pycache__/" in name or name.endswith((".pyc", ".db", ".pem", ".key")) for name in names
         ):
             raise ValueError(f"Unexpected wheel member in {path.name}")

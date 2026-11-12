@@ -111,6 +111,29 @@ def test_missing_or_incompatible_native_module_never_starts_python_rollback(monk
     assert execution.executor_status() == {"selected": "python", "initialized": False, "ok": True, "available": True}
 
 
+def test_python_deadline_includes_pending_supervision_before_process_start(monkeypatch):
+    from types import SimpleNamespace
+    from ssh_server_manager import execution
+    entered, ready = threading.Event(), threading.Event()
+    clock = [100.0]
+    original = execution.PythonTaskHandle._run
+    def delayed(self, *args):
+        entered.set()
+        assert ready.wait(2)
+        return original(self, *args)
+    monkeypatch.setattr(execution, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+    monkeypatch.setattr(execution.PythonTaskHandle, '_run', delayed)
+    monkeypatch.setattr(execution, 'ProcessOwner', lambda *args, **kw: pytest.fail('expired work must never spawn'))
+    task = execution.PythonExecutor().start(command("print('expired')", timeout=.1))
+    try:
+        assert entered.wait(1)
+        clock[0] = 101.0
+    finally:
+        ready.set()
+    result = task.wait(2)
+    assert result.reason == 'timeout' and result.pid is None and result.elapsed_ms == 1000
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows Job Object descendant verification")
 def test_job_cancellation_waits_for_a_real_descendant_to_exit(executor, tmp_path):
     import ctypes

@@ -4,7 +4,7 @@ import {useDialogState} from '../hooks';
 import type {Credential, DirectoryEnrichment, DirectoryEnrichmentEntry, DirectoryEntry, DirectoryListing, Host, RuntimeInfo, SavedPath} from '../types';
 import {enqueueDownload, enqueueUpload, filenameValid, joinRemote, onUploaded, useDownloading} from '../transfers';
 import {Button, EmptyState, ErrorNotice, Icon, Modal, formatBytes as bytes, relativeDate} from '../ui';
-import {connectionIdentities, FolderCache} from './folderCache';
+import {clearConnectionIdentities, connectionIdentities, FolderCache} from './folderCache';
 import './files.css';
 
 type Props = {hosts: Host[]; credentials?: Credential[]; runtime: RuntimeInfo; initialHostId?: string; initialPath?: string};
@@ -49,7 +49,7 @@ const folderCache = new FolderCache();
 // Uploads also invalidate when the Files page is unmounted.
 onUploaded((hostId, directory) => folderCache.invalidate(hostId, directory));
 /** Drop every cached folder; used when the session ends or a test starts. */
-export function clearFolderCache() {folderCache.clear();}
+export function clearFolderCache() {folderCache.clear(); clearConnectionIdentities();}
 // Folder names outlive the component but must not outlive the session that was
 // allowed to read them.
 if (typeof window !== 'undefined') window.addEventListener('ssm-session-expired', clearFolderCache);

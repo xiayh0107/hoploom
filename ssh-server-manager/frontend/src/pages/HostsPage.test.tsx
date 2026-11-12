@@ -8,7 +8,8 @@ vi.mock('../api',async original=>({...await original<typeof import('../api')>(),
 const mocked=vi.mocked(api);
 beforeEach(()=>{mocked.mockReset();history.replaceState({},'','#/hosts');localStorage.clear();});
 afterEach(()=>{vi.useRealTimers();});
-it('windows 10,000 hosts, navigates beyond the window and keeps focused actions mounted',()=>{
+// Functional coverage of repeated JSDOM focus moves; no rendering speed target.
+it('windows 10,000 hosts, navigates beyond the window and keeps focused actions mounted',{timeout:15_000},()=>{
   const values=Array.from({length:10_000},(_,index)=>host({id:`id-${index}`,alias:`node-${index}`,tags:['prod']}));
   render(<HostsPage hosts={values} credentials={[]} runtime={runtime} hash="#/hosts" onRefresh={vi.fn()} onCreateCredential={vi.fn()}/>);
   const table=screen.getByRole('table',{name:'Hosts'});

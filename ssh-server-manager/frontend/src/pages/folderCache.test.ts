@@ -47,3 +47,24 @@ it('invalidates host and jump identities when the saved credential revision chan
   expect(cache.reconcile(connectionIdentities([child, jump], [{...key, revision: key.revision + 1}]))).toEqual(new Set([child.id, jump.id]));
   expect(cache.read(child.id, undefined)).toBeUndefined();
 });
+
+it('invalidates all downstream hosts when a nested jump changes or disappears', () => {
+  const first = host({id:'first',alias:'first'}), second = host({id:'second',alias:'second',proxy_jumps:['first']}), child = host({proxy_jumps:['second']}), unrelated = host({id:'other',alias:'other'});
+  const cache = new FolderCache();
+  cache.reconcile(connectionIdentities([first,second,child,unrelated]));
+  cache.write(child.id,undefined,listing('/home',1)); cache.write(unrelated.id,undefined,listing('/home',1));
+  expect(cache.reconcile(connectionIdentities([{...first,hostname:'changed.invalid'},second,child,unrelated]))).toEqual(new Set([first.id,second.id,child.id]));
+  expect(cache.read(child.id,undefined)).toBeUndefined(); expect(cache.read(unrelated.id,undefined)).toBeDefined();
+  expect(cache.reconcile(connectionIdentities([second,child,unrelated]))).toEqual(new Set([first.id,second.id,child.id]));
+});
+
+it('handles a 10,000-hop chain and a cycle without recursive route copies', () => {
+  const hosts = Array.from({length:10_000},(_,index)=>host({id:`chain-${index}`,alias:`chain-${index}`,proxy_jumps:index?[`chain-${index-1}`]:[]}));
+  const before = connectionIdentities(hosts);
+  const after = connectionIdentities([{...hosts[0],port:2222},...hosts.slice(1)]);
+  expect(after.size).toBe(10_000);
+  for (const host of hosts) expect(after.get(host.id)).not.toBe(before.get(host.id));
+  const cycle = [host({id:'cycle-a',alias:'cycle-a',proxy_jumps:['cycle-b']}),host({id:'cycle-b',alias:'cycle-b',proxy_jumps:['cycle-a']})];
+  const oldCycle=connectionIdentities(cycle), newCycle=connectionIdentities([{...cycle[0],port:2222},cycle[1]]);
+  expect(newCycle.get('cycle-b')).not.toBe(oldCycle.get('cycle-b'));
+});

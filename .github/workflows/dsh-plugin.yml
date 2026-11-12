@@ -21,6 +21,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: dsh-plugin-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   native:
     uses: ./.github/workflows/native-wheels.yml

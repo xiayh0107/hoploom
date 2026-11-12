@@ -66,12 +66,15 @@ class PythonTaskHandle:
         self._result: ExecutionResult | None = None
         self._callbacks: list[Callable[[PythonTaskHandle], None]] = []
         self.pid: int | None = None
-        # Evaluate the parent's deadline before starting a thread.
-        timeout = operation.remaining(spec.timeout) if operation else spec.timeout
+        # Include time waiting for the supervisor thread, like the native queue.
+        start = time.monotonic()
+        if operation:
+            operation.check()
+        deadline = min(start + spec.timeout, operation.deadline) if operation else start + spec.timeout
         release = operation.canceled.subscribe(self.cancel) if operation else lambda: None
         def work() -> None:
             try:
-                result = self._run(spec, timeout)
+                result = self._run(spec, deadline, start)
             except Exception:
                 result = ExecutionResult("spawn_failed", None, b"", b"", 0, self.pid)
             finally:
@@ -109,7 +112,10 @@ class PythonTaskHandle:
             if not ready:
                 self._callbacks.append(callback)
         if ready:
-            callback(self)
+            try:
+                callback(self)
+            except Exception:
+                pass
 
     async def result_async(self) -> ExecutionResult:
         loop = asyncio.get_running_loop()
@@ -129,10 +135,11 @@ class PythonTaskHandle:
             self.cancel()
             raise
 
-    def _run(self, spec: ExecutionSpec, timeout: float) -> ExecutionResult:
-        start = time.monotonic()
+    def _run(self, spec: ExecutionSpec, deadline: float, start: float) -> ExecutionResult:
         if self._cancel.is_set():
             return ExecutionResult("canceled", None, b"", b"", 0)
+        if time.monotonic() >= deadline:
+            return ExecutionResult("timeout", None, b"", b"", round((time.monotonic() - start) * 1000))
         try:
             owner = ProcessOwner(literal_config_args(list(spec.command)), env=spec.env, tree=spec.owned_tree)
         except OSError:
@@ -169,7 +176,7 @@ class PythonTaskHandle:
             while True:
                 if self._cancel.is_set():
                     reason = "canceled"; break
-                if time.monotonic() - start >= timeout:
+                if time.monotonic() >= deadline:
                     reason = "timeout"; break
                 if exceeded.is_set():
                     reason = "output_limit"; break

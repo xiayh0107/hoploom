@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: test-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rust:
     runs-on: ubuntu-latest
