@@ -53,13 +53,20 @@ ln -s /path/to/ssh-server-manager ~/.claude/skills/hoploom
 
 **Keeping the skill current:** the skill directories are symlinks into one
 installed copy, and agents follow whatever that copy says. Re-run the same
-one-liner to update it — the installer pulls the current repository branch, re-links,
+one-liner to update it — the installer selects a published native wheel and its
+matching `vX.Y.Z` Skill tag, re-links,
 and creates command links in `~/.local/bin` (Windows:
 `%LOCALAPPDATA%\hoploom\bin`). It reports when that directory must be added
 to PATH; agents can use the printed absolute launcher immediately. `hoploom doctor`
 prints an `agent_skill` warning whenever a linked copy is older than the
 CLI you are running, which is the usual reason an agent falls back to
 hand-rolled `ssh`.
+
+Published wheels need no Rust compiler. A local checkout, custom `SSM_REPO_URL`,
+or `SSM_INSTALL_SOURCE=1` explicitly selects a source build and requires the
+pinned Rust toolchain. Existing path overrides remain supported;
+`SSM_VERSION=X.Y.Z` selects a published native version. Use the installed venv
+entry point so Skill source files cannot hide its native extension.
 
 ## When an agent installs this for a user
 
@@ -230,6 +237,15 @@ it; the skill description also carries English and Chinese trigger phrases
 so connection requests match it directly.
 
 ## Patterns for agent automation
+
+Bounded checks, diagnostics, directory browsing and captured transfers share an
+execution contract with explicit timeout, cancellation, output caps and task
+ownership. The default is the native core; `HOPLOOM_EXECUTOR=python` selects an
+explicit rollback. `doctor --json` checks local native availability without
+starting execution workers or contacting hosts. Reinstall a matching wheel to
+repair a missing native module; report an explicit rollback if one is needed.
+Do not silently change implementations or retry writes after an execution
+failure. A `busy` response indicates shared capacity, not a failed SSH login.
 
 ```bash
 # structured inventory

@@ -7,6 +7,11 @@ package to repair PATH; locate the installed launcher first. See
 
 ## Setup and UI
 
+Published Skill installs use the one-line installer to keep the native wheel and
+Skill tag at the same version. `./scripts/bootstrap` is for a source checkout
+and checks for the pinned Rust toolchain before building. The venv's installed
+entry points take precedence over same-named Skill source modules.
+
 ```bash
 ./scripts/bootstrap
 ./scripts/hoploom doctor [--json]
@@ -63,6 +68,13 @@ CLI syntax. Make clear that stored secrets remain in the local OS vault and
 that a successful `doctor` does not prove a host login has been tested.
 
 ## Servers
+
+`doctor --json` includes an `executor` check with the selected implementation,
+native version, availability and whether the runtime has initialized. Reading
+it creates no execution workers. Native execution is the default for bounded
+remote work; `HOPLOOM_EXECUTOR=python` explicitly selects the Python rollback.
+There is no automatic retry through another executor. Queue saturation returns
+`busy`; do not treat it or a user cancellation as a host reachability result.
 
 ```bash
 ./scripts/hoploom server list [--json]

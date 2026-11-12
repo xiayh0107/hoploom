@@ -8,7 +8,7 @@ const identity = (host: Host) => JSON.stringify([host.id, host.hostname, host.po
 
 // A single flight per inventory keeps sweeping the pointer across rows from
 // launching a fleet probe. Only the still-hovered host can start the next one.
-export function usePreviewObservation(host: Host | undefined, refresh: () => Promise<void>, paused = false) {
+export function usePreviewObservation(host: Host | undefined, refresh: (hostIds?: string[]) => Promise<void>, paused = false) {
   const cache = useRef(new Map<string, Observation>()), running = useRef(false);
   const alive = useRef(false), controller = useRef<AbortController | undefined>(undefined);
   const refreshRef = useRef(refresh); refreshRef.current = refresh;
@@ -35,7 +35,7 @@ export function usePreviewObservation(host: Host | undefined, refresh: () => Pro
         if (!alive.current || abort.signal.aborted) return;
         cache.current.set(key, {host: updated, until: Date.now() + FRESH_MS});
         // A local inventory refresh failure must not discard collected facts.
-        try {await refreshRef.current();} catch { /* The preview already has the new snapshot. */ }
+        try {await refreshRef.current([host.id]);} catch { /* The preview already has the new snapshot. */ }
       } catch {
         if (alive.current && !abort.signal.aborted) cache.current.set(key, {host: cached?.host, until: Date.now() + FAILURE_MS, failed: true});
       } finally {

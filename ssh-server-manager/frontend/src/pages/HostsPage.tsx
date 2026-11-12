@@ -1,14 +1,16 @@
-import {Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react';
+import {Fragment, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react';
 import {api, json, segment} from '../api';
 import {useDialogState, usePreference, useResource} from '../hooks';
 import type {Credential, Diagnosis, Host, HostRoute, ImportPreview, RuntimeInfo, SavedPath, Skill, TestResult, Workspace} from '../types';
 import {CredentialEditor} from './CredentialsPage';
 import {usePreviewObservation} from './usePreviewObservation';
+import {hostRows, indexHosts} from './hostInventory';
+import {useHostWindow} from './useHostWindow';
+export {visibleHostText} from './hostInventory';
 import {Badge, Button, EmptyState, ErrorNotice, Field, Icon, KeyHint, Modal, PageHeader, formatDate, relativeTime} from '../ui';
 
-type Props = {hosts: Host[]; credentials: Credential[]; runtime: RuntimeInfo; onRefresh: () => Promise<void>; hash: string; onCreateCredential: (done: (credential: Credential) => void) => void};
+type Props = {hosts: Host[]; credentials: Credential[]; runtime: RuntimeInfo; onRefresh: (hostIds?: string[]) => Promise<void>; hash: string; onCreateCredential: (done: (credential: Credential) => void) => void};
 export function statusLabel(host: Host) {return host.last_test_status === 'ok' ? `OK${host.last_test_latency_ms == null ? '' : ` · ${host.last_test_latency_ms} ms`}` : host.last_test_status === 'failed' ? host.last_test_error_code?.replaceAll('-', ' ') || 'Failed' : 'Never checked';}
-export function visibleHostText(host: Host, details: boolean) {return [host.alias, ...host.tags, ...(details ? [host.hostname, host.username, host.notes, host.credential_label || ''] : [])].join(' ').toLocaleLowerCase();}
 const systemMarks: Record<string,string> = {linux:'LX',ubuntu:'Ub',debian:'Db',fedora:'Fd',centos:'Ce',almalinux:'Al',rocky:'Rk',arch:'Ar',macos:'Mc',darwin:'Mc',windows:'Wi',freebsd:'FB'};
 const statusFilters: Record<string,string> = {any:'Any',ok:'Reachable',failed:'Failing',never:'Never checked'};
 function hostHash(host: Host) {return `#/hosts/${segment(host.alias)}`;}
@@ -20,6 +22,7 @@ export default function HostsPage({hosts, credentials, runtime, onRefresh, hash,
   const [observationResults, setObservationResults] = useDialogState<TestResult[] | null>('host-observation-results',null), [bulkAction, setBulkAction] = useState<'test' | 'observe' | null>(null);
   const [pins, setPins] = usePreference<string[]>('host-pins', ['files', 'check', 'copy']);
   const [cursorId, setCursorId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{id: string; anchor: DOMRect; observe: boolean}>();
   const previewTimer = useRef<number | undefined>(undefined), hideTimer = useRef<number | undefined>(undefined);
   const clearPreviewTimers = () => {if (previewTimer.current !== undefined) {window.clearTimeout(previewTimer.current); previewTimer.current = undefined;} if (hideTimer.current !== undefined) {window.clearTimeout(hideTimer.current); hideTimer.current = undefined;}};
@@ -36,41 +39,31 @@ export default function HostsPage({hosts, credentials, runtime, onRefresh, hash,
     if (immediate) display(); else previewTimer.current = window.setTimeout(display, 260);
   };
   const routeAlias = (() => {try {return decodeURIComponent(hash.split('?')[0].split('/')[2] || '');} catch {return '';}})();
-  const selectedHost = hosts.find(host => host.alias === routeAlias || host.id === routeAlias);
+  const inventory = useMemo(() => indexHosts(hosts, details), [hosts, details]);
+  const selectedHost = inventory.byAlias.get(routeAlias) || inventory.byId.get(routeAlias);
   const legacyCredential = hash.startsWith('#/servers/') && hash.split('?')[0].endsWith('/credential');
-  useEffect(() => {setSelection(previous => new Set([...previous].filter(id => hosts.some(host => host.id === id))));}, [hosts]);
-  const blocked = useMemo(() => new Map(hosts.filter(host => host.proxy_jumps.length).map(host => {
-    const down = host.proxy_jumps.find(jump => hosts.some(candidate => candidate.alias === jump && candidate.last_test_status === 'failed'));
-    return [host.id, down] as const;
-  }).filter(([, down]) => down)), [hosts]);
-  const filtered = hosts.filter(host => visibleHostText(host, details).includes(query.toLocaleLowerCase()) && (!tag || (tag === '\u0000untagged' ? !host.tags.length : host.tags.includes(tag))) && (status === 'any' || (status === 'never' ? !host.last_test_at : host.last_test_status === status)));
-  const scopes = useMemo(() => {
-    const counts = new Map<string, number>();
-    hosts.forEach(host => host.tags.forEach(name => counts.set(name, (counts.get(name) || 0) + 1)));
-    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, count]) => ({name, count}));
-  }, [hosts]);
-  const untagged = hosts.filter(host => !host.tags.length).length;
-  const groups = useMemo(() => {
-    const map = new Map<string, Host[]>();
-    filtered.forEach(host => {const label = group === 'tag' ? host.tags[0] || 'Untagged' : group === 'route' ? host.proxy_jumps.length ? `Via ${host.proxy_jumps.join(' → ')}` : 'Direct connections' : ''; map.set(label, [...(map.get(label) || []), host]);});
-    return [...map];
-  }, [filtered, group]);
-  const rows = useMemo(() => group === 'route' ? routeRows(filtered) : groups.flatMap(([label, members]) => members.map(host => ({host, label, child: false, parent: false, last: false}))), [groups, group]);
+  useEffect(() => {setSelection(previous => new Set([...previous].filter(id => inventory.byId.has(id))));}, [inventory]);
+  const {blocked, scopes, untagged, summary} = inventory;
+  const deferredQuery = useDeferredValue(query.toLocaleLowerCase());
+  const filtered = useMemo(() => hosts.filter(host => inventory.text.get(host.id)!.includes(deferredQuery) && (!tag || (tag === '\u0000untagged' ? !host.tags.length : host.tags.includes(tag))) && (status === 'any' || (status === 'never' ? !host.last_test_at : host.last_test_status === status))), [hosts, inventory, deferredQuery, tag, status]);
+  const rows = useMemo(() => hostRows(filtered, group), [filtered, group]);
+  const windowed = hosts.length > 200;
+  const hostWindow = useHostWindow(rows, cursorId, focusedId, windowed);
   const cursor = rows.findIndex(row => row.host.id === cursorId);
   const previewHost = details && !selectedHost ? filtered.find(host => host.id === preview?.id) : undefined;
   const observation = usePreviewObservation(preview?.observe ? previewHost : undefined, onRefresh, busy);
   const action = async (task: () => Promise<void>) => {if (busy) return; setBusy(true); setError(undefined); setNotice(''); try {await task();} catch (reason) {setError(reason);} finally {setBusy(false);}};
-  const check = (host: Host) => action(async () => {const result = await api<TestResult>(`/hosts/${segment(host.id)}/test`, json('POST', {timeout: 8})); await onRefresh(); setNotice(`${host.alias}: ${result.message}`);});
-  const observe = (host: Host) => {hidePreview(); return action(async () => {const result = await api<TestResult>(`/hosts/${segment(host.id)}/observe`, json('POST', {timeout: 8})); await onRefresh(); setNotice(`${host.alias}: ${result.message}`);});};
+  const check = (host: Host) => action(async () => {const result = await api<TestResult>(`/hosts/${segment(host.id)}/test`, json('POST', {timeout: 8})); await onRefresh([host.id]); setNotice(`${host.alias}: ${result.message}`);});
+  const observe = (host: Host) => {hidePreview(); return action(async () => {const result = await api<TestResult>(`/hosts/${segment(host.id)}/observe`, json('POST', {timeout: 8})); await onRefresh([host.id]); setNotice(`${host.alias}: ${result.message}`);});};
   const batch = (kind: 'test' | 'observe', identifiers: string[] = [...selection]) => action(async () => {
     setBulkAction(kind);
     try {
       const response = await api<{results: TestResult[]}>(`/hosts/${kind}`, json('POST', {identifiers, timeout: 8, concurrency: runtime.capabilities.max_check_concurrency}));
       if (kind === 'observe') setObservationResults(response.results); else setResults(response.results);
-      await onRefresh();
+      await onRefresh(identifiers);
     } finally {setBulkAction(null);}
   });
-  const diagnose = (host: Host) => action(async () => {const result = await api<Diagnosis>(`/hosts/${segment(host.id)}/diagnose`, json('POST', {timeout: 8})); setDiagnosis(result); await onRefresh();});
+  const diagnose = (host: Host) => action(async () => {const result = await api<Diagnosis>(`/hosts/${segment(host.id)}/diagnose`, json('POST', {timeout: 8})); setDiagnosis(result); await onRefresh([host.id]);});
   const copy = (host: Host) => {if (details) return action(async () => {await navigator.clipboard.writeText(`hoploom connect ${host.alias}`); setNotice(`Copied connection command for ${host.alias}`);});};
   const files = (host: Host) => {location.hash = `#/files/${segment(host.id)}`;};
   const toggle = (id: string) => setSelection(previous => {const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next;});
@@ -101,7 +94,6 @@ export default function HostsPage({hosts, credentials, runtime, onRefresh, hash,
   useEffect(() => {if (!details) hidePreview();}, [details]);
   useEffect(() => {const hide = () => hidePreview(); document.addEventListener('scroll', hide, true); window.addEventListener('resize', hide); return () => {document.removeEventListener('scroll', hide, true); window.removeEventListener('resize', hide);};}, []);
   useEffect(() => () => clearPreviewTimers(), []);
-  const summary = `${hosts.length} hosts · ${hosts.filter(host => host.last_test_status === 'ok' && !blocked.has(host.id)).length} reachable · ${hosts.filter(host => host.last_test_status === 'failed' && !blocked.has(host.id)).length} failing${blocked.size ? ` · ${blocked.size} blocked by a jump host` : ''} · ${hosts.filter(host => !host.last_test_at && !blocked.has(host.id)).length} never checked`;
   const focusRow = (id: string) => setCursorId(id);
   return <div className="page hosts-page">
     <PageHeader title="Hosts" description={summary}>
@@ -123,36 +115,38 @@ export default function HostsPage({hosts, credentials, runtime, onRefresh, hash,
     </div>
     {!!selection.size && <div className="toolbar selection-bar"><strong>{selection.size} selected</strong><Button disabled={busy || selection.size > runtime.capabilities.max_bulk_hosts} onClick={() => void batch('test')}>{bulkAction === 'test' ? 'Checking…' : 'Run checks'}</Button><Button disabled={busy || selection.size > runtime.capabilities.max_bulk_hosts} onClick={() => void batch('observe')}>{bulkAction === 'observe' ? 'Collecting…' : 'Collect host info'}</Button><Button onClick={() => setTagging(hosts.filter(host => selection.has(host.id)))}>Edit tags</Button><Button variant="ghost" onClick={() => setSelection(new Set())}>Clear selection</Button>{selection.size > runtime.capabilities.max_bulk_hosts && <span>Select at most {runtime.capabilities.max_bulk_hosts} hosts.</span>}</div>}
     {!filtered.length ? <EmptyState title={hosts.length ? 'No matching hosts' : 'Your servers, in one place'}><p>{hosts.length ? 'Try another search or filter.' : 'Add your first host or import your SSH configuration to get started.'}</p></EmptyState> : <div className="hosts-card">
-      <div className="host-table-region">
-        <div className="lane head" role="row">
-          <div className="cell-check"><input type="checkbox" aria-label="Select all visible hosts" checked={filtered.length > 0 && filtered.every(host => selection.has(host.id))} onChange={event => setSelection(event.target.checked ? new Set(filtered.map(host => host.id)) : new Set())}/></div>
+      <div className="host-table-region" ref={hostWindow.region} onScroll={hostWindow.onScroll} role="table" aria-label="Hosts" aria-rowcount={hostWindow.rowCount} aria-colcount={7} onFocusCapture={event => setFocusedId((event.target as HTMLElement).closest<HTMLElement>('[data-host-id]')?.dataset.hostId || null)} onBlurCapture={event => setFocusedId((event.relatedTarget as HTMLElement | null)?.closest?.<HTMLElement>('[data-host-id]')?.dataset.hostId || null)}>
+        <div className="lane head" role="row" aria-rowindex={1}>
+          <div className="cell-check" role="columnheader"><input type="checkbox" aria-label="Select all visible hosts" checked={filtered.length > 0 && filtered.every(host => selection.has(host.id))} onChange={event => setSelection(event.target.checked ? new Set(filtered.map(host => host.id)) : new Set())}/></div>
           <div className="cell-host" role="columnheader">Host<Icon name="up" size={9}/></div>
           <div className="cell-status" role="columnheader">Last check</div>
           <div className="cell-endpoint" role="columnheader">Endpoint</div>
           <div className="cell-tags" role="columnheader">Tags</div>
           <div className="cell-credential" role="columnheader">Credential</div>
-          <div className="cell-actions" aria-label="Actions"/>
+          <div className="cell-actions" role="columnheader" aria-label="Actions"/>
         </div>
-        {rows.map(({host, label, child, parent, last}, index) => {
+        <div role="rowgroup" className={windowed ? 'host-window-body' : undefined} style={windowed ? {height: hostWindow.height} : undefined}>
+        {hostWindow.visible.map(({host, label, child, parent, last, groupStart, groupSize, index, offset, ariaIndex}) => {
           const down = blocked.get(host.id), isCursor = index === cursor;
-          return <Fragment key={host.id}>{group === 'tag' && label && (index === 0 || rows[index - 1].label !== label) && <div className={`lane group-row${index === 0 ? ' first' : ''}`}><span>{label}</span><span className="muted">· {rows.filter(row => row.label === label).length}</span></div>}
-            <div className={`lane host-row${isCursor ? ' cursor' : ''}${down ? ' blocked' : ''}${child ? ' route-child' : ''}${parent ? ' route-parent' : ''}${last ? ' route-last' : ''}`} role="row" data-host={host.alias} onMouseDown={() => focusRow(host.id)}>
-              <div className="cell-check"><input type="checkbox" aria-label={`Select ${host.alias}`} checked={selection.has(host.id)} onChange={() => toggle(host.id)}/></div>
-              <div className="cell-host">
+          return <div key={host.id} role="presentation" className={windowed ? 'host-window-row' : undefined} style={windowed ? {top: offset} : undefined}>{groupStart && <div className={`lane group-row${index === 0 ? ' first' : ''}`} role="row" aria-rowindex={ariaIndex - 1}><span role="cell" aria-colspan={7}>{label} <span className="muted">· {groupSize}</span></span></div>}
+            <div className={`lane host-row${isCursor ? ' cursor' : ''}${down ? ' blocked' : ''}${child ? ' route-child' : ''}${parent ? ' route-parent' : ''}${last ? ' route-last' : ''}`} role="row" aria-rowindex={ariaIndex} data-host={host.alias} data-host-id={host.id} onMouseDown={() => focusRow(host.id)}>
+              <div className="cell-check" role="cell"><input type="checkbox" aria-label={`Select ${host.alias}`} checked={selection.has(host.id)} onChange={() => toggle(host.id)}/></div>
+              <div className="cell-host" role="cell">
                 <OsTile logo={host.facts?.os_logo}/>
                 <div className="host-lines">
                   <div className="host-name-line"><button className="host-name" aria-label={host.alias} aria-describedby={details && preview?.id === host.id ? 'host-preview' : undefined} onMouseEnter={event => showPreview(host, event.currentTarget.closest<HTMLElement>('.host-row') ?? event.currentTarget)} onMouseLeave={scheduleHide} onFocus={event => showPreview(host, event.currentTarget.closest<HTMLElement>('.host-row') ?? event.currentTarget, true)} onBlur={scheduleHide} onClick={() => {hidePreview(); location.hash = hostHash(host);}}>{host.alias}</button>{host.jump_for_count > 0 && <span className="jump-chip"><Icon name="route" size={10}/>Jump for {host.jump_for_count}</span>}</div>
                   <small>{host.facts?.os_pretty || 'OS unknown'}{details ? host.notes && <> · {host.notes}</> : <> · <MaskedValue/></>}</small>
                 </div>
               </div>
-              <div className="cell-status"><StatusCell host={host} reason={down}/></div>
-              <div className="cell-endpoint"><EndpointCell host={host} details={details}/></div>
-              <div className="cell-tags"><TagCell tags={host.tags} onAdd={() => setTagging([host])}/></div>
-              <div className="cell-credential"><span className="credential-name">{details ? host.credential_label || 'Default SSH identity' : host.credential_id ? <MaskedValue label="Credential hidden"/> : 'None'}</span><small>{credentialKind(host.credential_kind)}</small></div>
+              <div className="cell-status" role="cell"><StatusCell host={host} reason={down}/></div>
+              <div className="cell-endpoint" role="cell"><EndpointCell host={host} details={details}/></div>
+              <div className="cell-tags" role="cell"><TagCell tags={host.tags} onAdd={() => setTagging([host])}/></div>
+              <div className="cell-credential" role="cell"><span className="credential-name">{details ? host.credential_label || 'Default SSH identity' : host.credential_id ? <MaskedValue label="Credential hidden"/> : 'None'}</span><small>{credentialKind(host.credential_kind)}</small></div>
               <RowActions host={host} pins={pinned(host)} busy={busy} hideDetails={!details} onFiles={() => files(host)} onCheck={() => void check(host)} onCopy={() => void copy(host)} onDiagnose={() => void diagnose(host)} onEdit={() => edit(host)} onDuplicate={() => edit(host, true)} onTags={() => setTagging([host])} onRemove={() => setConfirmDelete(host)} onPin={pin => setPins(pins.includes(pin) ? pins.filter(value => value !== pin) : [...pins, pin])}/>
             </div>
-          </Fragment>;
+          </div>;
         })}
+        </div>
       </div>
     </div>}
     {!!filtered.length && <div className="hosts-footer"><span>Showing {filtered.length === hosts.length ? `all ${hosts.length}` : `${filtered.length} of ${hosts.length}`} hosts. Select rows to edit tags, run checks or collect host info in bulk.</span><span className="footer-hints"><span><KeyHint>↑↓</KeyHint>move</span><span><KeyHint>↵</KeyHint>open details</span></span></div>}
@@ -222,7 +216,7 @@ function TagCell({tags, onAdd}: {tags: string[]; onAdd: () => void}) {
 
 function RowActions({host, pins, busy, hideDetails, onFiles, onCheck, onCopy, onDiagnose, onEdit, onDuplicate, onTags, onRemove, onPin}: {host: Host; pins: string[]; busy: boolean; hideDetails: boolean; onFiles: () => void; onCheck: () => void; onCopy: () => void; onDiagnose: () => void; onEdit: () => void; onDuplicate: () => void; onTags: () => void; onRemove: () => void; onPin: (pin: string) => void}) {
   const handler: Record<string, () => void> = {files: onFiles, check: onCheck, copy: onCopy, diagnose: onDiagnose, edit: onEdit, tags: onTags, duplicate: onDuplicate};
-  return <div className="cell-actions row-actions">
+  return <div className="cell-actions row-actions" role="cell">
     <div className="pinned-group">{pins.map(pin => <Button key={pin} variant="ghost" className="action-slot" disabled={busy || (hideDetails && pin === 'copy')} aria-label={`${ROW_ACTIONS.find(action => action.id === pin)?.label} ${host.alias}`} title={ROW_ACTIONS.find(action => action.id === pin)?.label} onClick={() => handler[pin]?.()}><Icon name={ROW_ACTIONS.find(action => action.id === pin)?.icon || 'file'} size={15}/></Button>)}
       <details className="row-menu"><summary aria-label={`More actions for ${host.alias}`}><Icon name="more" size={15}/></summary>
         <div className="row-menu-items">
@@ -265,25 +259,6 @@ function tagTone(name: string) {const TONES = ['rose', 'amber', 'blue', 'green']
 function hopStatus(hop: {last_test_status?: string | null; last_test_error_code?: string | null; last_test_at?: string | null}) {return hop.last_test_status === 'ok' ? 'OK' : hop.last_test_status === 'failed' ? hop.last_test_error_code?.replaceAll('-', ' ') || 'Failed' : 'Not checked';}
 function credentialKind(kind?: string | null) {return kind === 'key' ? 'Key' : kind === 'password' ? 'Password' : kind === 'agent' ? 'SSH agent' : 'OpenSSH defaults';}
 function scopeLabel(scope?: string) {return scope === 'public' ? 'Public' : scope === 'private' ? 'Private VPC' : scope === 'lan' ? 'LAN' : scope === 'loopback' ? 'This machine' : 'Unresolved';}
-function routeRows(hosts: Host[]) {
-  const aliases = new Set(hosts.map(host => host.alias)), children = new Map<string, Host[]>();
-  hosts.forEach(host => {
-    const parent = [...host.proxy_jumps].reverse().find(alias => alias !== host.alias && aliases.has(alias)) || '';
-    children.set(parent, [...children.get(parent) || [], host]);
-  });
-  const rows: {host: Host; label: string; child: boolean; parent: boolean; last: boolean}[] = [], visited = new Set<string>();
-  const append = (host: Host, child: boolean, last: boolean) => {
-    if (visited.has(host.id)) return;
-    visited.add(host.id);
-    const descendants = children.get(host.alias) || [];
-    rows.push({host, label: '', child, parent: descendants.length > 0, last: last && !descendants.length});
-    descendants.forEach((value, index) => append(value, true, last && index === descendants.length - 1));
-  };
-  (children.get('') || []).forEach(host => append(host, false, true));
-  hosts.forEach(host => append(host, false, true));
-  return rows;
-}
-
 function LegacyCredential({host,credential,runtime,onRefresh}:{host:Host;credential?:Credential;runtime:RuntimeInfo;onRefresh:()=>Promise<void>}) {
   const [saved,setSaved]=useState<Credential>(),[error,setError]=useState<unknown>(),[busy,setBusy]=useState(false);
   const alive=useRef(true);useEffect(()=>()=>{alive.current=false;},[]);

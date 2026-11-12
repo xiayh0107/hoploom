@@ -1,0 +1,120 @@
+name: native-wheels
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: macos-x64, runner: macos-15-intel, target: x86_64-apple-darwin, arch: x64, manylinux: "", interpreter: python }
+          - { id: macos-arm64, runner: macos-latest, target: aarch64-apple-darwin, arch: arm64, manylinux: "", interpreter: python }
+          - { id: windows-x64, runner: windows-latest, target: x86_64-pc-windows-msvc, arch: x64, manylinux: "", interpreter: python }
+          - { id: windows-arm64, runner: windows-11-arm, target: aarch64-pc-windows-msvc, arch: arm64, manylinux: "", interpreter: python }
+          - { id: glibc-x64, runner: ubuntu-22.04, target: x86_64-unknown-linux-gnu, arch: x64, manylinux: "2014", interpreter: python3.13 }
+          - { id: glibc-arm64, runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, arch: arm64, manylinux: "2014", interpreter: python3.13 }
+          - { id: musl-x64, runner: ubuntu-22.04, target: x86_64-unknown-linux-musl, arch: x64, manylinux: musllinux_1_2, interpreter: python3.13 }
+          - { id: musl-arm64, runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, arch: arm64, manylinux: musllinux_1_2, interpreter: python3.13 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: ${{ matrix.arch }}
+      - name: Build pinned abi3 wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          maturin-version: v1.16.0
+          rust-toolchain: "1.97.0"
+          working-directory: ssh-server-manager
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --locked --out dist -i ${{ matrix.interpreter }}
+      - name: Install and execute the native wheel outside its source package
+        if: ${{ !startsWith(matrix.id, 'musl-') }}
+        shell: bash
+        run: |
+          python -m pip install --only-binary=:all: ssh-server-manager/dist/*.whl pytest
+          version=$(python -I -c 'import ssh_server_manager; print(ssh_server_manager.__version__)')
+          python -I ssh-server-manager/scripts/native-smoke.py "$version"
+          mkdir -p native-contract
+          cp ssh-server-manager/tests/test_execution.py native-contract/
+          python -I -m pytest -q native-contract/test_execution.py
+      - name: Install and execute musl wheel on its native architecture
+        if: startsWith(matrix.id, 'musl-')
+        shell: bash
+        run: |
+          docker run --rm -v "$PWD:/io" -w /io alpine:3.22 sh -ec '
+            apk add --no-cache python3 py3-pip
+            python3 -m venv /tmp/hoploom-test
+            /tmp/hoploom-test/bin/python -m pip install --only-binary=:all: /io/ssh-server-manager/dist/*.whl pytest
+            version=$(/tmp/hoploom-test/bin/python -I -c "import ssh_server_manager; print(ssh_server_manager.__version__)")
+            /tmp/hoploom-test/bin/python -I /io/ssh-server-manager/scripts/native-smoke.py "$version"
+            mkdir -p /tmp/native-contract
+            cp /io/ssh-server-manager/tests/test_execution.py /tmp/native-contract/
+            /tmp/hoploom-test/bin/python -I -m pytest -q /tmp/native-contract/test_execution.py
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-wheel-${{ matrix.id }}
+          path: ssh-server-manager/dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install build
+      - run: python -m build --sdist --outdir ssh-server-manager/dist ssh-server-manager
+      - name: Build and smoke-test the public source archive
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' ssh-server-manager/pyproject.toml | head -1)
+          python ssh-server-manager/scripts/packaging-smoke.py ssh-server-manager/dist/*.tar.gz --version "$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-sdist
+          path: ssh-server-manager/dist/*.tar.gz
+          if-no-files-found: error
+
+  collect:
+    needs: [wheels, sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-wheel-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-sdist
+          path: dist
+      - name: Require the exact complete platform set and matching versions
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' ssh-server-manager/pyproject.toml | head -1)
+          python ssh-server-manager/scripts/wheel-manifest.py dist --version "$version" --commit "$GITHUB_SHA"
+          if [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo 'Python release tag does not match the package version' >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-dist
+          path: dist
+          if-no-files-found: error

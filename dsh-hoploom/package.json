@@ -1,6 +1,6 @@
 {
   "name": "dsh-hoploom",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Hoploom for DeepSeek Harness: local SSH inventory, host context and explicitly enabled remote operations, with credentials kept in the OS vault.",
   "type": "module",
   "license": "MIT",
@@ -40,7 +40,10 @@
     "CHANGELOG.md",
     "LICENSE",
     "backend",
-    "python/*.py"
+    "python/*.py",
+    "python/_hoploom_packaging/*.py",
+    "python/_hoploom_packaging/LICENSE*",
+    "python/_hoploom_packaging/README.md"
   ],
   "icon": "icon.svg",
   "keywords": [
@@ -83,7 +86,8 @@
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json && node scripts/build-client.mjs",
     "test": "node --test test/*.test.mjs",
     "check": "npm run build && npm test",
-    "prepack": "npm run build && npm run build:backend",
+    "prepack": "npm run build && npm run check:backend",
+    "check:backend": "node scripts/check-backend.mjs",
     "build:backend": "node scripts/build-backend.mjs"
   },
   "dependencies": {

@@ -5,6 +5,33 @@ supported installs; the wheel needs no Node.js, no build step and no network at
 runtime. This page covers the two distribution channels that need extra work, and
 is explicit about which of them this project can actually ship.
 
+## Native Python distributions
+
+The mixed Python/Rust package uses maturin 1.16.0 and PyO3's `cp310-abi3` ABI.
+`ssh_server_manager._native` ships with the Python package, entry points and
+built UI. `Cargo.toml`, `Cargo.lock`, Python metadata and the website version
+must agree. The pinned source toolchain is in `rust-toolchain.toml`.
+
+`native-wheels.yml` builds macOS x64/ARM64, Windows x64/ARM64, manylinux2014
+x64/ARM64 and musllinux 1.2 x64/ARM64. Each target installs and executes its
+wheel, tests cancellation and explicit Python rollback, and checks native
+version/load evidence outside the checkout's package directory. The sdist job
+checks public inputs, rebuilds from the archive and smoke-tests the installed
+result. Only after every job succeeds does `wheel-manifest.py` validate all
+eight wheels' metadata, tags and SHA-256 and record their source commit.
+
+The resulting `native-dist` artifact contains the complete set and sdist.
+Python publication uploads that set; the DSH plugin imports the same commit's
+wheels. `npm prepack` validates a complete bundle and never replaces it with a
+local wheel. Local `build:backend` remains available for development, produces
+an incomplete manifest, and cannot pass the formal publication gate.
+
+Source archives include Rust sources, lockfile, Python sources, built UI and
+public developer inputs, excluding compiled native libraries, private state,
+dependencies and caches. Standard CPython 3.10+ with the GIL is supported;
+this release makes no prebuilt PyPy/free-threaded promise. Runtime rollback
+does not remove the source build's Rust requirement.
+
 ## Homebrew (the xiayh0107/tap tap)
 
 ```bash
@@ -28,7 +55,7 @@ curl -fsSL -o "$sdist" \
   https://files.pythonhosted.org/packages/source/h/hoploom/hoploom-X.Y.Z.tar.gz
 scripts/prepare_packaging "$sdist"
 cp dist/packaging/homebrew/hoploom.rb "$(brew --repository xiayh0107/tap)/Formula/"
-brew update-python-resources xiayh0107/tap/hoploom
+brew update-python-resources --extra-packages maturin==1.16.0 xiayh0107/tap/hoploom
 ```
 
 Then commit on a branch in the tap and open a pull request.
@@ -53,7 +80,8 @@ Homebrew installs with a one-day upload cooldown, so a dependency released in th
 last day must be pinned to the previous version; and the resolution runs on one
 platform, so keyring's Linux-only `jeepney` and `secretstorage` belong in an
 `on_linux` block. Every resource builds from source, which is why the formula
-needs Rust, `pkgconf`, OpenSSL, libffi and libyaml. Its test never touches the OS
+needs Rust, `pkgconf`, OpenSSL, libffi and libyaml. Regenerate maturin and other
+build resources as well as runtime dependencies for the native release. Its test never touches the OS
 keychain, which a test sandbox does not have.
 
 ## winget (not planned)

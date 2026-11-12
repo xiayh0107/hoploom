@@ -115,7 +115,8 @@ class DisconnectWatch:
 
     def __init__(self, request: Any) -> None:
         self.request = request
-        self.cancel = threading.Event()
+        from .operations import CancellationToken
+        self.cancel = CancellationToken()
         self.gone = asyncio.Event()
         self.task: asyncio.Task | None = None
 

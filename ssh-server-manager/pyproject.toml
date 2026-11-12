@@ -1,6 +1,6 @@
 [project]
 name = "hoploom"
-version = "0.11.0"
+version = "0.12.0"
 description = "Local-first SSH host and credential manager for humans and AI agents — OS-keychain vault, loopback web UI, agent-safe by design"
 readme = "README.md"
 license = {text = "MIT"}
@@ -41,20 +41,53 @@ Documentation = "https://xiayh0107.github.io/hoploom/docs/"
 Changelog = "https://github.com/xiayh0107/hoploom/blob/main/ssh-server-manager/CHANGELOG.md"
 
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin==1.16.0"]
+build-backend = "maturin"
 
 [project.scripts]
 hoploom = "ssh_server_manager.cli:main"
 serverctl = "ssh_server_manager.cli:legacy_main"
 ssh-server-manager-askpass = "ssh_server_manager.askpass:main"
 
-[tool.setuptools]
-package-dir = {"" = "scripts"}
-packages = ["ssh_server_manager"]
-
-[tool.setuptools.package-data]
-ssh_server_manager = ["assets/ui/*"]
+[tool.maturin]
+python-source = "scripts"
+module-name = "ssh_server_manager._native"
+features = ["python"]
+locked = true
+include = [
+  {path = "MANIFEST.in", format = "sdist"},
+  {path = "SKILL.md", format = "sdist"},
+  {path = "rust-toolchain.toml", format = "sdist"},
+  {path = "agents/**/*.yaml", format = "sdist"},
+  {path = "packaging/**/*", format = "sdist"},
+  {path = "contracts/*.json", format = "sdist"},
+  {path = "contracts/*.txt", format = "sdist"},
+  {path = "docs/*.md", format = "sdist"},
+  {path = "references/*.md", format = "sdist"},
+  {path = "tests/**/*.py", format = "sdist"},
+  {path = "tests/**/*.md", format = "sdist"},
+  {path = "scripts/*.py", format = "sdist"},
+  {path = "scripts/*.cmd", format = "sdist"},
+  {path = "scripts/bootstrap", format = "sdist"},
+  {path = "scripts/hoploom", format = "sdist"},
+  {path = "scripts/serverctl", format = "sdist"},
+  {path = "scripts/build-ui", format = "sdist"},
+  {path = "scripts/prepare_packaging", format = "sdist"},
+  {path = "frontend/src/**/*", format = "sdist"},
+  {path = "frontend/e2e/**/*", format = "sdist"},
+  {path = "frontend/scripts/**/*", format = "sdist"},
+  {path = "frontend/*.json", format = "sdist"},
+  {path = "frontend/*.ts", format = "sdist"},
+  {path = "frontend/*.html", format = "sdist"},
+  {path = "frontend/*.md", format = "sdist"},
+]
+exclude = [
+  "**/__pycache__/**", "**/*.pyc", ".venv/**", "target/**", "build/**", "dist/**",
+  "frontend/node_modules/**", "frontend/test-results/**", "frontend/playwright-report/**", "frontend/dist/**",
+  "tests/.pytest_cache/**", "tests/manual/tmp/**",
+  {path = "scripts/ssh_server_manager/_native*.so", format = "sdist"},
+  {path = "scripts/ssh_server_manager/_native*.pyd", format = "sdist"},
+]
 
 [project.optional-dependencies]
 test = ["httpx>=0.28", "markdown>=3.5", "paramiko>=3.5", "pytest>=8.0"]

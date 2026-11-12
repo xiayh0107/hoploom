@@ -268,7 +268,12 @@ test.describe('slow host transfers', () => {
     const again = transfers.getByRole('listitem').filter({hasText: 'large-download.bin'});
     // Had the cancelled sftp kept its slot, this would wait for that transfer to end.
     await expect(again.getByText(/^Reading on host · \d+%$/)).toBeVisible({timeout: 5_000});
+    const progress = async () => Number((await elsewhere.getByText(/^Reading on host · \d+%$/).textContent())?.match(/(\d+)%/)?.[1]);
+    const beforeCancel = await progress();
     await again.getByRole('button', {name: 'Cancel download large-download.bin', exact: true}).click();
+    // Both requests share the same host/master. The other one's real byte
+    // count must continue after this request's entire process group is stopped.
+    await expect.poll(progress, {timeout: 5_000}).toBeGreaterThan(beforeCancel);
     await elsewhere.getByRole('button', {name: 'Cancel download large-download.bin', exact: true}).click();
     expect(saved).toEqual([]);
   });

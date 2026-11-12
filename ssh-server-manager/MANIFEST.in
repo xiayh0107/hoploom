@@ -1,4 +1,7 @@
 include SKILL.md
+include Cargo.toml Cargo.lock rust-toolchain.toml
+recursive-include rust/src *.rs
+prune target
 include scripts/*.py scripts/build-ui
 include scripts/bootstrap scripts/bootstrap.cmd scripts/serverctl scripts/serverctl.cmd
 include scripts/hoploom scripts/hoploom.cmd

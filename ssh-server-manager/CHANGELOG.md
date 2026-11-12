@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 0.12.0 — 2026-11-12
+
+- Ship the native executor in the unified maturin package, with pinned Rust and
+  Cargo dependencies, an abi3 Python 3.10+ wheel matrix across eight platform /
+  architecture combinations, rebuilt-source installation checks and a complete
+  artifact gate before publication. One-line installers use a published wheel
+  and matching Skill tag; explicit source builds check Rust first. Venv launchers
+  prevent source files from hiding an installed native module. DSH 0.3.0 selects
+  bundled wheels using the managed Python's tags and preserves offline reuse.
+
+- Continue the full performance upgrade: index host searches, grouping and
+  routes once per inventory/privacy revision; window inventories above 200
+  hosts with preserved keyboard identity, focused controls and accessible row
+  indices. Keep local metadata during refresh and coalesce affected-host reads.
+  Bound directory caching by both folders and entries, sharing home aliases and
+  invalidating changed routes, credential revisions and upload destinations.
+
+- Add a lazy PyO3/Tokio execution core and an explicit
+  `HOPLOOM_EXECUTOR=python` rollback, with shared bounded-output, timeout and
+  cancellation behavior. `doctor --json` reports local executor availability
+  without starting its runtime. Admit operations before scheduling Web workers,
+  share nested-operation permits and namespace probes, and keep shared SSH
+  masters outside request-owned POSIX groups/Windows Jobs. Disconnect/session
+  cleanup stops only the request and retains independent staging cleanup.
+  Batch waiters share the same queue budget; Python supervision also counts
+  time before its worker starts, without spawning already expired work.
+
 - Support Git for Windows' MSYS OpenSSH in credential tests and
   `credential rotate`. The probe renders `LocalCommand` and `ProxyCommand`
   through the client's POSIX shell and reads the helper, manifest and Python
@@ -37,13 +64,14 @@
   session. A folder that receives an upload refreshes when a tab shows it.
 
 - Make cancelling a web transfer stop it on the host. A cancelled or abandoned
-  request now terminates its own sftp process, never the process group, so a
-  shared ControlMaster and its ProxyJump helper keep serving other requests. The
+  request now terminates its owned process tree; shared ControlMaster lifetimes
+  and their ProxyJump helpers remain separate and keep serving other requests. The
   staged copy is removed and the server slot is free at once, instead of after
   the host finished. Overwrites are staged beside the target and swapped in with
   SFTP's atomic `posix-rename`, so a cancelled or failed replacement leaves the
   original intact. A symlink target, or a server without that extension, still
-  gets a direct write, which cannot be cancelled. While the host works, the
+  gets a direct write; cancellation stops it but cannot promise the original is
+  intact. While the host works, the
   **Transfers** dock shows real progress: the staged download's size, or how far
   sftp has read an upload (Linux and macOS; Windows shows no percentage). It
   also shows a transfer waiting for a slot held by another tab. Clients name a

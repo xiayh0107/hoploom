@@ -6,6 +6,7 @@ import asyncio
 import json
 import queue
 import threading
+import uuid
 from datetime import datetime, timezone
 from fastapi.responses import StreamingResponse
 
@@ -20,6 +21,8 @@ from .local_metadata import LocalKeyBrowser, agent_metadata
 from .ssh_config import SSHConfigError
 from .validation import ValidationError
 from .web_transfers import TRANSFER_ID_PATTERN
+from .web_transfers import DisconnectWatch
+from .operations import OperationContext
 
 
 class NDJSONResponse(StreamingResponse):
@@ -38,6 +41,65 @@ def build_router(
     key_browser = LocalKeyBrowser()
     state.local_key_browser = key_browser
 
+    async def run_owned(function: Callable, operation: OperationContext, watch: DisconnectWatch):
+        from starlette.requests import ClientDisconnect
+        from .operations import OperationCancelled
+        try:
+            return await services.operations.run_async(operation, function, watch.gone)
+        except OperationCancelled:
+            if watch.gone.is_set():
+                raise ClientDisconnect() from None
+            raise
+
+    async def remote_read(request: Request, identifier: str, session_id: str, function: Callable, *, timeout: float = 45):
+        """Watch disconnects before queueing and await owned-process cleanup."""
+        host = services.database.get_server(identifier)
+        async with DisconnectWatch(request) as watch:
+            operation = OperationContext(host["id"], timeout, session_id=session_id, canceled=watch.cancel)
+            return await run_owned(function, operation, watch)
+
+    async def remote_batch(request: Request, payload: dto.BulkProbeRequest, session_id: str, *, observe: bool = False):
+        from .operations import OperationError
+        from .ssh_runner import SSHError
+        from .vault import VaultError
+        from starlette.requests import ClientDisconnect
+        from contextlib import suppress
+        hosts = {}
+        for identifier in payload.identifiers:
+            host = services.database.get_server(identifier)
+            hosts[host["id"]] = host
+        batch_id = uuid.uuid4().hex
+        function = services.diagnostics.observe if observe else services.diagnostics.test
+        timeout = (payload.timeout + 5) * (6 if observe else 1) + 2
+        async with DisconnectWatch(request) as watch:
+            async def one(host):
+                operation = OperationContext(host["id"], timeout, session_id=session_id, canceled=watch.cancel,
+                                             bulk=True, batch_id=batch_id, batch_limit=payload.concurrency)
+                return await run_owned(lambda: function(host["id"], timeout=payload.timeout), operation, watch)
+            tasks = [asyncio.create_task(one(host)) for host in hosts.values()]
+            try:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+            except asyncio.CancelledError:
+                watch.cancel.set()
+                for task in tasks:
+                    task.cancel()
+                with suppress(Exception, asyncio.CancelledError):
+                    await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 8)
+                raise
+            if watch.cancel.is_set():
+                raise ClientDisconnect()
+            response = []
+            for host, result in zip(hosts.values(), results):
+                if not isinstance(result, BaseException):
+                    response.append(result)
+                elif isinstance(result, (SSHError, VaultError, ValidationError, NotFoundError, OperationError)):
+                    response.append({"alias": host["alias"], "ok": False, "latency_ms": 0,
+                                     "error_code": result.code if isinstance(result, OperationError) else "observation-failed" if observe else "check-failed",
+                                     "message": "Host info collection failed; run diagnose for details" if observe else "Connection check failed; run diagnose for details"})
+                else:
+                    raise result
+            return {"results": response}
+
     def clean_local_metadata(_session=Depends(browser_session)):
         state.clean()
         key_browser.clean(set(state.sessions))
@@ -46,7 +108,7 @@ def build_router(
         prefix="/api/v1",
         dependencies=[Depends(browser_session), Depends(clean_local_metadata)],
         responses={
-            **{code: {"model": dto.ErrorResponse} for code in (400, 401, 403, 404, 409, 501, 502)},
+            **{code: {"model": dto.ErrorResponse} for code in (400, 401, 403, 404, 409, 501, 502, 503, 504)},
             # HTTPStatus phrases differ between supported Python versions.
             413: {"model": dto.ErrorResponse, "description": "Content Too Large"},
             422: {"model": dto.ErrorResponse, "description": "Unprocessable Content"},
@@ -73,16 +135,12 @@ def build_router(
         return services.hosts.list(query=query, tag=tag)
 
     @router.post("/hosts/test", response_model=dto.BulkTestResult, tags=["diagnostics"])
-    def test_hosts(payload: dto.BulkProbeRequest, _session=Depends(csrf_session)):
-        return services.diagnostics.test_many(
-            payload.identifiers, timeout=payload.timeout, concurrency=payload.concurrency,
-        )
+    async def test_hosts(request: Request, payload: dto.BulkProbeRequest, session_data=Depends(csrf_session)):
+        return await remote_batch(request, payload, session_data[0])
 
     @router.post("/hosts/observe", response_model=dto.BulkTestResult, tags=["diagnostics"])
-    def observe_hosts(payload: dto.BulkProbeRequest, _session=Depends(csrf_session)):
-        return services.diagnostics.observe_many(
-            payload.identifiers, timeout=payload.timeout, concurrency=payload.concurrency,
-        )
+    async def observe_hosts(request: Request, payload: dto.BulkProbeRequest, session_data=Depends(csrf_session)):
+        return await remote_batch(request, payload, session_data[0], observe=True)
 
     @router.get("/hosts/{identifier}", response_model=dto.Host, tags=["hosts"])
     def host(identifier: str):
@@ -115,35 +173,45 @@ def build_router(
         return services.hosts.notes(identifier, payload.text, mode=payload.mode)
 
     @router.post("/hosts/{identifier}/test", response_model=dto.TestResult, tags=["diagnostics"])
-    def test(identifier: str, payload: dto.ProbeRequest | None = None, _session=Depends(csrf_session)):
-        return services.diagnostics.test(identifier, timeout=payload.timeout if payload else 8)
+    async def test(identifier: str, request: Request, payload: dto.ProbeRequest | None = None, session_data=Depends(csrf_session)):
+        timeout = payload.timeout if payload else 8
+        return await remote_read(request, identifier, session_data[0],
+                                 lambda: services.diagnostics.test(identifier, timeout=timeout), timeout=timeout + 7)
 
     @router.post("/hosts/{identifier}/observe", response_model=dto.TestResult, tags=["diagnostics"])
-    def observe(identifier: str, payload: dto.ProbeRequest | None = None, _session=Depends(csrf_session)):
-        return services.diagnostics.observe(identifier, timeout=payload.timeout if payload else 8)
+    async def observe(identifier: str, request: Request, payload: dto.ProbeRequest | None = None, session_data=Depends(csrf_session)):
+        timeout = payload.timeout if payload else 8
+        return await remote_read(request, identifier, session_data[0],
+                                 lambda: services.diagnostics.observe(identifier, timeout=timeout), timeout=(timeout + 5) * 6 + 2)
 
     @router.post("/hosts/{identifier}/diagnose", response_model=dto.Diagnosis, tags=["diagnostics"])
-    def diagnose(identifier: str, payload: dto.ProbeRequest | None = None, _session=Depends(csrf_session)):
-        return services.diagnostics.diagnose(identifier, timeout=payload.timeout if payload else 8)
+    async def diagnose(identifier: str, request: Request, payload: dto.ProbeRequest | None = None, session_data=Depends(csrf_session)):
+        timeout = payload.timeout if payload else 8
+        return await remote_read(request, identifier, session_data[0],
+                                 lambda: services.diagnostics.diagnose(identifier, timeout=timeout), timeout=(timeout + 5) * 8 + 2)
 
     @router.get("/hosts/{identifier}/files", response_model=dto.DirectoryListing, tags=["files"])
-    def files(identifier: str, path: str | None = None, name_filter: str | None = None):
+    async def files(identifier: str, request: Request, path: str | None = None, name_filter: str | None = None,
+                    session_data=Depends(browser_session)):
         if getattr(state, "config_problem", None):
             raise SSHConfigError(state.config_problem)
         # The UI paints this listing and then asks for metadata, so it must not
         # pay for the probe twice; a caller without a second request (the CLI)
         # keeps the one-request behaviour through services.files directly.
-        return services.files.list_directory(identifier, path, name_filter=name_filter, enrich=False)
+        return await remote_read(request, identifier, session_data[0],
+                                 lambda: services.files.list_directory(identifier, path, name_filter=name_filter, enrich=False))
 
     # Split out of the listing so a folder paints from SFTP before paying for a
     # second remote round trip. Each claim repeats the SFTP facts the caller is
     # enriching, so the probe still refuses a shell namespace that disagrees.
     @router.post("/hosts/{identifier}/files/metadata", response_model=dto.DirectoryEnrichment, tags=["files"])
-    def files_metadata(identifier: str, payload: dto.DirectoryEnrichmentRequest, _session=Depends(csrf_session)):
+    async def files_metadata(identifier: str, request: Request, payload: dto.DirectoryEnrichmentRequest,
+                             session_data=Depends(csrf_session)):
         if getattr(state, "config_problem", None):
             raise SSHConfigError(state.config_problem)
         claims = [entry.model_dump() for entry in payload.entries]
-        result = services.files.enrich_directory(identifier, payload.path, claims)
+        result = await remote_read(request, identifier, session_data[0],
+                                   lambda: services.files.enrich_directory(identifier, payload.path, claims))
         return {"path": payload.path, "entries": result.get("entries", {})}
 
     # Both transfers take a slot first; a full queue answers 503 at once.

@@ -29,8 +29,9 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
+from .operations import OperationContext, OperationTimeout, bind_operation, current_operation
 
 # A jail or a home directory does not move every few seconds, but it can move
 # while the app runs (a re-provisioned account, a rebuilt container, a host that
@@ -56,6 +57,15 @@ class _Verdict:
     identity: tuple[str, int, str]
     matched: bool
     expires_at: float
+
+
+@dataclass
+class _ProbeFlight:
+    operation: OperationContext
+    consumers: int = 0
+    done: threading.Event = field(default_factory=threading.Event)
+    answer: bool | None = None
+    error: BaseException | None = None
 
 
 def host_identity(server: dict[str, Any]) -> tuple[str, int, str]:
@@ -88,6 +98,7 @@ class ListingRoute:
         self._verdicts: dict[str, _Verdict] = {}
         self._deferred: dict[str, tuple[tuple[str, int, str], float]] = {}
         self._flights: dict[str, threading.Lock] = {}
+        self._shared_flights: dict[tuple[str, tuple[str, int, str]], _ProbeFlight] = {}
 
     # -- may the fast route be attempted at all? ---------------------------
 
@@ -144,6 +155,9 @@ class ListingRoute:
         remembered = self._remembered(key, identity)
         if remembered is not None:
             return remembered
+        operation = current_operation()
+        if operation is not None:
+            return self._shared_namespace(server, probe, operation)
         # One probe per host: a concurrent request waits for the first verdict
         # instead of paying the same handshake again.
         with self._flight(key):
@@ -156,6 +170,62 @@ class ListingRoute:
                 return False
             self.record(server, matched=bool(verdict))
             return bool(verdict)
+
+    def _shared_namespace(self, server: dict[str, Any], probe: Callable[[], bool | None], consumer: OperationContext) -> bool:
+        key = (server["id"], host_identity(server))
+        while True:
+            consumer.check()
+            with self._guard:
+                flight = self._shared_flights.get(key)
+                closing = flight is not None and flight.operation.canceled.is_set() and not flight.done.is_set()
+                if not closing:
+                    created = flight is None
+                    if created:
+                        flight = _ProbeFlight(OperationContext(consumer.host_id, consumer.remaining()))
+                        self._shared_flights[key] = flight
+                    assert flight is not None
+                    flight.consumers += 1
+                    break
+            consumer.canceled.wait(min(0.025, consumer.remaining()))
+
+        assert flight is not None
+        def run() -> None:
+            try:
+                with bind_operation(flight.operation):
+                    flight.answer = probe()
+                    flight.operation.check()
+                if flight.answer is None:
+                    self.defer(server)
+                else:
+                    self.record(server, matched=bool(flight.answer))
+            except BaseException as exc:
+                flight.error = exc
+            finally:
+                flight.operation.finish()
+                flight.done.set()
+                with self._guard:
+                    if not flight.consumers and self._shared_flights.get(key) is flight:
+                        self._shared_flights.pop(key)
+        if created:
+            threading.Thread(target=run, name="hoploom-namespace-probe", daemon=True).start()
+        try:
+            while not flight.done.wait(min(0.025, consumer.remaining())):
+                consumer.check()
+            consumer.check()
+            if flight.error is not None:
+                if isinstance(flight.error, OperationTimeout):
+                    return False  # This consumer may still have fallback time.
+                raise flight.error
+            return bool(flight.answer)
+        finally:
+            with self._guard:
+                flight.consumers -= 1
+                if not flight.consumers:
+                    if flight.done.is_set():
+                        if self._shared_flights.get(key) is flight:
+                            self._shared_flights.pop(key)
+                    else:
+                        flight.operation.cancel()
 
     def record(self, server: dict[str, Any], *, matched: bool) -> None:
         """Remember one namespace answer for ``ttl`` seconds."""

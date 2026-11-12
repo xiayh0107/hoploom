@@ -41,6 +41,10 @@ class DeniedSSHRunner:
     def __getattr__(self, name):
         return self._deny
 
+    def close(self):
+        # Local lifecycle cleanup has no remote action to deny.
+        pass
+
     @staticmethod
     def _deny(*args, **kwargs):
         raise SSHError("Remote operations are disabled in this isolated UI fixture")

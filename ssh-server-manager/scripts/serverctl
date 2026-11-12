@@ -10,6 +10,9 @@ while [ -L "$SCRIPT" ]; do
   esac
 done
 ROOT=$(CDPATH= cd -- "$(dirname -- "$SCRIPT")/.." && pwd)
+if [ -x "$ROOT/.venv/bin/serverctl" ]; then
+  exec "$ROOT/.venv/bin/serverctl" "$@"
+fi
 if [ -x "$ROOT/.venv/bin/python" ]; then
   exec "$ROOT/.venv/bin/python" "$ROOT/scripts/serverctl.py" "$@"
 fi

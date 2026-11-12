@@ -66,11 +66,10 @@ test('embedded UI reuses Hoploom endpoints with per-frame sessions, CSRF and a p
 })
 
 test('UI tunnel streams multipart uploads and downloads, strips cookies, and cancels pending responses', { timeout: 10000 }, async t => {
-  let received = '', contentType = '', closed
-  const disconnected = new Promise(resolve => { closed = resolve })
+  let received = '', contentType = ''
   const server = createServer(async (request, response) => {
     if (request.url.endsWith('/pending')) {
-      response.on('close', closed)
+      response.on('close', () => server.emit('pending-close'))
       response.writeHead(200, { 'content-type': 'application/x-ndjson' })
       response.write('{"type":"progress"}\n')
       return
@@ -78,7 +77,7 @@ test('UI tunnel streams multipart uploads and downloads, strips cookies, and can
     contentType = request.headers['content-type']
     for await (const part of request) received += part.toString()
     response.writeHead(200, { 'content-type': 'application/octet-stream', 'set-cookie': 'private=hidden',
-      'content-disposition': 'attachment; filename="fixture.txt"' })
+      'content-disposition': 'attachment; filename="fixture.txt"', 'content-length': '17' })
     response.write('download ')
     response.end('contents')
   }).listen(0, '127.0.0.1')
@@ -100,8 +99,16 @@ test('UI tunnel streams multipart uploads and downloads, strips cookies, and can
   assert.match(received, /fixture upload/)
   assert.equal(response.headers.get('set-cookie'), null)
   assert.match(response.headers.get('content-disposition'), /fixture.txt/)
+  assert.equal(response.headers.get('content-length'), '17')
   assert.equal(await response.text(), 'download contents')
+  const bodyDisconnected = once(server, 'pending-close')
+  const cancelledBody = await ui.proxy(request('/pending'))
+  const bodyReader = cancelledBody.body.getReader()
+  assert.equal((await bodyReader.read()).done, false)
+  await bodyReader.cancel()
+  await bodyDisconnected
   const controller = new AbortController()
+  const disconnected = once(server, 'pending-close')
   const pending = await ui.proxy(request('/pending', undefined, controller.signal))
   const reader = pending.body.getReader()
   assert.match(new TextDecoder().decode((await reader.read()).value), /progress/)

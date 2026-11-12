@@ -117,7 +117,7 @@ Build both distributions with the candidate version already set consistently:
 ```sh
 .venv/bin/python -m pip install build
 .venv/bin/python -m build --outdir dist .
-.venv/bin/python scripts/packaging-smoke.py dist/hoploom-VERSION-py3-none-any.whl --version VERSION
+.venv/bin/python scripts/packaging-smoke.py dist/hoploom-VERSION-cp310-abi3-PLATFORM.whl --version VERSION
 .venv/bin/python scripts/packaging-smoke.py dist/hoploom-VERSION.tar.gz --version VERSION
 ```
 
@@ -142,7 +142,7 @@ open the OS credential vault.
 Run the migration smoke against the exact candidate wheel intended for release:
 
 ```sh
-.venv/bin/python scripts/upgrade-smoke.py dist/hoploom-VERSION-py3-none-any.whl --version VERSION
+.venv/bin/python scripts/upgrade-smoke.py dist/hoploom-VERSION-cp310-abi3-PLATFORM.whl --version VERSION
 ```
 
 This check needs package-index access. It downloads the actual published 0.8.0

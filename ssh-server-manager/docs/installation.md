@@ -5,12 +5,19 @@ Upgrading from SSH Server Manager / `serverctl`? Follow the
 
 ## Requirements
 
-- Python **3.10+**
+- Standard CPython **3.10+** (with the GIL)
 - An **OpenSSH client** on `PATH` (`ssh -V` to check)
   - macOS / most Linux distros: preinstalled
   - Windows 10/11: `Settings → Apps → Optional features → OpenSSH Client`,
     or `winget install Microsoft.OpenSSH.Beta`
 - An unlocked **OS credential vault** (see [platforms.md](platforms.md))
+
+Published native wheels cover macOS, Windows, Linux glibc and Linux musl, each
+on x64 and ARM64. A wheel installation needs neither Rust nor Node.js. PyPy and
+free-threaded Python are outside this release's prebuilt support. Source builds
+need the Rust toolchain pinned in `rust-toolchain.toml`; bootstrap checks it
+before creating the environment. `HOPLOOM_EXECUTOR=python` is an explicit runtime
+rollback after installation, not a way to build the package without Rust.
 
 ## Option A — pipx / uv (recommended)
 
@@ -51,8 +58,9 @@ scripts\bootstrap.cmd
 scripts\hoploom.cmd doctor
 ```
 
-The `scripts/hoploom` launcher prefers the project `.venv` and falls back
-to the system `python3`.
+The launcher first calls the installed entry point in the project `.venv`, so a
+Skill's source files cannot hide the installed native module. Development installs
+remain editable. With no installed entry point it falls back to the source launcher.
 
 ## Option C — as an AI Agent Skill (one line)
 
@@ -68,8 +76,8 @@ Windows:
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/xiayh0107/hoploom/main/install.ps1 | iex"
 ```
 
-The installer fetches the source (or uses the checkout it runs from —
-`./install.sh` works too), installs dependencies, symlinks the skill into
+The one-line installer selects the latest published native version, installs
+its wheel, fetches the matching `vX.Y.Z` Skill tag, and symlinks the skill into
 every detected agent skills directory under the name `hoploom` (`~/.claude/skills`,
 `~/.codex/skills`; extend with `SSM_SKILLS_DIRS`), creates `~/.local/bin` and
 links both `hoploom` and the compatible `serverctl` command there on macOS/Linux.
@@ -80,6 +88,13 @@ The installer finishes with
 `agent_skill` check warns when a linked skill copy is older than the CLI,
 so agents never keep following stale instructions silently. See
 [ai-agents.md](ai-agents.md).
+
+`SSM_INSTALL_DIR`, `SSM_REPO_URL` and `SSM_SKILLS_DIRS` keep their existing
+meanings. `SSM_VERSION=X.Y.Z` selects a published native release (0.12.0+).
+Running `./install.sh` / `-File install.ps1` from a checkout, setting
+`SSM_INSTALL_SOURCE=1`, or supplying a custom `SSM_REPO_URL` uses a source build
+and requires Rust. An ordinary update stops if its managed checkout has local
+edits; preserve those edits in a separate source checkout before updating.
 
 ## Verify the install
 
@@ -102,7 +117,7 @@ vault check on Linux — see [platforms.md](platforms.md#linux).
 
 ## Upgrades and database backups
 
-For the first upgrade from `ssh-server-manager` to Hoploom 0.11.0, follow the
+For the first upgrade from `ssh-server-manager` to Hoploom 0.12.0, follow the
 [migration guide](migration.md). A package rename requires replacing the old
 distribution; `pipx upgrade ssh-server-manager` will not switch to Hoploom.
 

@@ -46,6 +46,11 @@ Hoploom is different by construction:
 
 ## Quick start
 
+Source builds require the toolchain in `rust-toolchain.toml`. Published wheels
+support standard CPython 3.10+ on macOS, Windows, Linux glibc/musl, x64/ARM64,
+without a Rust compiler. The one-line Skill installer uses a published wheel
+and matching release tag; local checkout installation builds from source.
+
 ```bash
 git clone https://github.com/xiayh0107/hoploom.git
 cd hoploom/ssh-server-manager

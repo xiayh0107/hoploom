@@ -81,7 +81,7 @@ class Exchange:
 
 def call(app, path, *, headers, body_chunks=(), content_length=True, vanish_after_first_chunk=False,
          vanish_after_chunks: int | None = None, spec_version: str = "2.3",
-         vanish_when: threading.Event | None = None, query: str = "") -> Exchange:
+         vanish_when: threading.Event | None = None, query: str = "", method: str = "POST") -> Exchange:
     """One ASGI request; counts body chunks pulled and can drop the client.
 
     A dropped client behaves as uvicorn (ASGI spec 2.3) reports one: receive
@@ -95,7 +95,7 @@ def call(app, path, *, headers, body_chunks=(), content_length=True, vanish_afte
         header_items["content-length"] = str(sum(len(chunk) for chunk in pending))
     scope = {
         "type": "http", "asgi": {"version": "3.0", "spec_version": spec_version}, "http_version": "1.1",
-        "method": "POST", "scheme": "http", "path": path, "raw_path": path.encode(), "query_string": query.encode(),
+        "method": method, "scheme": "http", "path": path, "raw_path": path.encode(), "query_string": query.encode(),
         "root_path": "", "client": ("127.0.0.1", 50000), "server": ("localhost", 8765),
         "headers": [(key.encode(), value.encode()) for key, value in header_items.items()],
     }
@@ -137,6 +137,33 @@ def call(app, path, *, headers, body_chunks=(), content_length=True, vanish_afte
 
     anyio.run(run)
     return exchange
+
+
+@pytest.mark.parametrize("executor_name", ["python", "rust"])
+def test_directory_disconnect_collects_its_process_without_recording_host_failure(app, tmp_path, monkeypatch, executor_name):
+    import sys
+    from ssh_server_manager import execution
+    delegate = execution.get_executor(executor_name)
+    vanished = threading.Event()
+    tasks = []
+    class ObservedExecutor:
+        def start(self, spec, operation=None):
+            task = delegate.start(spec, operation)
+            tasks.append(task)
+            assert task.wait_started(3) is not None
+            vanished.set()
+            return task
+    monkeypatch.setattr(execution, "get_executor", lambda: ObservedExecutor())
+    runner = app.state.services.runner()
+    runner.fast_listing = False
+    monkeypatch.setattr(runner, "_sftp_command", lambda *_a, **_kw: [sys.executable, "-c", "import time;time.sleep(60)"])
+    result = call(app, "/api/v1/hosts/box/files", headers=session_headers(app), body_chunks=[b""],
+                  vanish_when=vanished, method="GET")
+    assert result.error is None
+    assert tasks[0].wait(1).reason == "canceled"
+    assert app.state.services.database.get_server("box")["last_test_status"] is None
+    assert app.state.services.operations.snapshot() == {"active": 0, "queued": 0, "transfers": 0}
+    assert error_log(tmp_path) == ""
 
 
 @pytest.mark.parametrize("prefix", ["/api/v1/hosts", "/api/servers"])

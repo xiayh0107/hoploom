@@ -254,6 +254,10 @@ See [Using Hoploom with AI agents](ssh-server-manager/docs/ai-agents.md).
 
 ### From source
 
+Source builds require the Rust toolchain pinned in
+`ssh-server-manager/rust-toolchain.toml`. Published native wheels need no Rust;
+the one-line installer selects a published wheel and its matching Skill tag.
+
 ```bash
 git clone https://github.com/xiayh0107/hoploom.git
 cd hoploom/ssh-server-manager

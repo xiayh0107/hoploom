@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — 2026-11-12
+
+- Bundle Hoploom 0.12.0 native wheels for macOS/Windows and glibc/musl Linux,
+  each on x64/ARM64, built and verified from the same source commit. Discover
+  compatibility tags in the managed Python, verify selected hashes/native
+  versions and include platform/wheel identity in the offline cache.
+- Make formal prepack require the complete wheel collection without rebuilding
+  or replacing it with a local developer wheel. Preserve installation locking,
+  prior environments, cancellation and setup/recovery routes. Use pinned static
+  uv binaries on Linux so setup supports both glibc and musl.
+- Connect the embedded app lifecycle, cancel a released view's operations,
+  forward download Content-Length, and propagate downstream stream cancellation.
+
 ## 0.2.2 — 2026-11-06
 
 - Publish through npm Trusted Publishing from the `publish-dsh` workflow,

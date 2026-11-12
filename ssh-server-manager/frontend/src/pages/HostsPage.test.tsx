@@ -8,6 +8,24 @@ vi.mock('../api',async original=>({...await original<typeof import('../api')>(),
 const mocked=vi.mocked(api);
 beforeEach(()=>{mocked.mockReset();history.replaceState({},'','#/hosts');localStorage.clear();});
 afterEach(()=>{vi.useRealTimers();});
+// Functional coverage of repeated JSDOM focus moves; no rendering speed target.
+it('windows 10,000 hosts, navigates beyond the window and keeps focused actions mounted',{timeout:15_000},()=>{
+  const values=Array.from({length:10_000},(_,index)=>host({id:`id-${index}`,alias:`node-${index}`,tags:['prod']}));
+  render(<HostsPage hosts={values} credentials={[]} runtime={runtime} hash="#/hosts" onRefresh={vi.fn()} onCreateCredential={vi.fn()}/>);
+  const table=screen.getByRole('table',{name:'Hosts'});
+  expect(table).toHaveAttribute('aria-rowcount','10001');
+  expect(document.querySelectorAll('.host-row').length).toBeLessThan(40);
+  for(let index=0;index<50;index++)fireEvent.keyDown(document,{key:'ArrowDown'});
+  expect(document.querySelector('.host-row.cursor')).toHaveAttribute('data-host','node-49');
+  expect(document.querySelector('.host-row.cursor')).toHaveAttribute('aria-rowindex','51');
+  fireEvent.keyDown(document,{key:'Escape'});
+  const focused=screen.getByRole('button',{name:'Run check node-49'});act(()=>focused.focus());
+  table.scrollTop=58*9000;fireEvent.scroll(table);
+  expect(focused).toHaveFocus();
+  expect(screen.getByRole('button',{name:'node-9000'})).toBeInTheDocument();
+  expect(document.querySelectorAll('.host-row').length).toBeLessThan(40);
+  expect(mocked).not.toHaveBeenCalled();
+});
 it('opens local workspace and route without an implicit remote operation',async()=>{
   const value=host();mocked.mockImplementation(async path=>path.endsWith('/workspace')?{paths:[],skills:[]}:path.endsWith('/route')?{hops:[{alias:value.alias,external:false}],blocked_by:null}:Promise.reject(new Error('Unexpected remote action')));
   render(<HostsPage hosts={[value]} credentials={[]} runtime={runtime} hash="#/hosts/alpha" onRefresh={vi.fn()} onCreateCredential={vi.fn()}/>);

@@ -4,15 +4,14 @@ import { constants } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { fileURLToPath } from 'node:url'
 import { extractUv } from './archive.js'
 import { runLocal } from './process.js'
 import { SetupError, type Stage } from './state.js'
 import { UV_VERSION, uvAssets } from './uv-assets.js'
+import { bundledWheel, pythonTags, readWheelManifest, verifyNative } from './wheels.js'
+export { bundledWheel } from './wheels.js'
 
 export interface BackendLaunch { command: string; commandArgs: string[] }
-interface WheelManifest { filename: string; version: string; sha256: string }
-const wheelDirectory = fileURLToPath(new URL('../backend/', import.meta.url))
 const hash = (data: Buffer) => createHash('sha256').update(data).digest('hex')
 
 export function managedDirectory(override = ''): string {
@@ -148,18 +147,6 @@ async function uvExecutable(root: string, signal: AbortSignal, progress: (stage:
   return executable
 }
 
-export async function bundledWheel(directory = wheelDirectory): Promise<{ path: string; manifest: WheelManifest }> {
-  let manifest: WheelManifest
-  try { manifest = JSON.parse(await readFile(join(directory, 'manifest.json'), 'utf8')) }
-  catch { throw new SetupError('integrity') }
-  if (!/^hoploom-[0-9.]+-py3-none-any\.whl$/.test(manifest.filename) || !/^[a-f0-9]{64}$/.test(manifest.sha256)) {
-    throw new SetupError('integrity')
-  }
-  const path = join(directory, manifest.filename)
-  if (hash(await readFile(path)) !== manifest.sha256) throw new SetupError('integrity')
-  return { path, manifest }
-}
-
 function launchAt(root: string, directory: string): BackendLaunch {
   return {
     command: join(root, 'environments', directory, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python'),
@@ -176,17 +163,26 @@ export async function prepareManagedBackend(options: {
   allowInstall?: boolean
 }): Promise<BackendLaunch> {
   const { root, signal, progress, verify } = options
-  const wheel = await bundledWheel(options.wheelDir)
+  const collection = await readWheelManifest(options.wheelDir)
   await mkdir(root, { recursive: true, mode: 0o700 })
   const cached = async (): Promise<BackendLaunch | undefined> => {
     try {
       const current = JSON.parse(await readFile(join(root, 'current.json'), 'utf8'))
-      if (current.sha256 !== wheel.manifest.sha256 || !/^env-[a-f0-9-]{36}$/.test(current.directory)) return
+      if (current.version !== collection.version || current.sourceCommit !== collection.sourceCommit
+        || !/^env-[a-f0-9-]{36}$/.test(current.directory)) return
       const launch = launchAt(root, current.directory)
       await access(launch.command, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
+      const wheel = await bundledWheel(await pythonTags(launch.command, signal), options.wheelDir)
+      if (current.filename !== wheel.manifest.filename || current.sha256 !== wheel.manifest.sha256
+        || current.target !== wheel.manifest.target) return
+      await verifyNative(launch.command, collection.version, signal)
       await verify(launch)
       return launch
-    } catch { signal.throwIfAborted(); return }
+    } catch (error) {
+      signal.throwIfAborted()
+      if (error instanceof SetupError && error.code === 'integrity') throw error
+      return
+    }
   }
   const previous = await cached()
   if (previous) return previous
@@ -209,13 +205,16 @@ export async function prepareManagedBackend(options: {
     const venv = await runLocal(uv, ['venv', '--no-project', '--no-config', '--managed-python', '--python', '3.13', created], { env, cwd: root, signal })
     if (venv.code !== 0) throw new SetupError('install')
     const launch = launchAt(root, directory)
+    const wheel = await bundledWheel(await pythonTags(launch.command, signal), options.wheelDir)
     progress('installing')
     const installed = await runLocal(uv, ['pip', 'install', '--no-config', '--python', launch.command,
       '--index-url', 'https://pypi.org/simple', wheel.path], { env, cwd: root, signal })
     if (installed.code !== 0) throw new SetupError('install')
+    await verifyNative(launch.command, collection.version, signal)
     await verify(launch)
     signal.throwIfAborted()
-    await atomicJson(join(root, 'current.json'), { version: wheel.manifest.version, sha256: wheel.manifest.sha256, directory })
+    await atomicJson(join(root, 'current.json'), { version: wheel.manifest.version, sourceCommit: collection.sourceCommit,
+      filename: wheel.manifest.filename, sha256: wheel.manifest.sha256, target: wheel.manifest.target, directory })
     committed = true
     return launch
   } finally {

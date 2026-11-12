@@ -30,15 +30,18 @@ Node.js 22.19+（22.x）或 24+。
 远程访问 dsh 时，仍在当前 dsh 页面内管理后端机器的主机库，无需打开另一个浏览器。
 插件无需额外 API Key。远程 SSH 操作仍需要系统 OpenSSH；保存凭据需要可用的系统保险库。
 
-自动准备支持 macOS、Windows、Linux（glibc）的 x64 和 ARM64。运行环境工具 uv
+自动准备支持 macOS、Windows、Linux（glibc 或 musl）的 x64 和 ARM64。运行环境工具 uv
 从 Astral 官方 GitHub Release 下载并校验固定 SHA256，Python 由 uv 管理，依赖从
 PyPI 安装；Hoploom 后端已包含在 npm 包内。不会修改系统 Python 或 shell 配置。
 后续启动复用本地环境，可离线启动。
 
+包内含八个平台的原生 wheel，按实际托管 Python 的兼容标签选择，验证 SHA-256
+及原生模块版本。缓存身份包含平台和 wheel 摘要；使用者无需安装 Rust。
+
 也可安装 [GitHub Release](https://github.com/xiayh0107/hoploom/releases) 附件：
 
 ```sh
-dsh plugin --profile web add /绝对路径/dsh-hoploom-0.2.2.tgz
+dsh plugin --profile web add /绝对路径/dsh-hoploom-0.3.0.tgz
 ```
 
 更新：`dsh plugin --profile web update dsh-hoploom@latest`。

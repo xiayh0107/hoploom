@@ -5,7 +5,7 @@
 # edit the version or sha256 by hand. Then, in the tap checkout:
 #
 #   cp hoploom.rb "$(brew --repository xiayh0107/tap)/Formula/"
-#   brew update-python-resources xiayh0107/tap/hoploom
+#   brew update-python-resources --extra-packages maturin==1.16.0 xiayh0107/tap/hoploom
 #
 # and open a pull request there, so `brew test-bot` builds it on macOS and Linux.
 # `brew update-python-resources` fills the resource blocks: they pin every
@@ -45,5 +45,13 @@ class Hoploom < Formula
     ENV["SSM_ORIGINAL_SSH_CONFIG"] = (testpath/"none").to_s
     system bin/"hoploom", "server", "add", "web1", "--hostname", "web1.example.com", "--username", "deploy"
     assert_match "web1.example.com", shell_output("#{bin}/hoploom server list --json")
+    system libexec/"bin/python", "-I", "-c", <<~PYTHON
+      import sys
+      from ssh_server_manager import __version__, _native
+      from ssh_server_manager.execution import ExecutionSpec, get_executor
+      assert __version__ == _native.version == "#{version}"
+      result = get_executor("rust").start(ExecutionSpec((sys.executable, "-c", "print('brew-native')"))).wait(10)
+      assert result.reason == "exit" and result.returncode == 0 and result.stdout.strip() == b"brew-native"
+    PYTHON
   end
 end

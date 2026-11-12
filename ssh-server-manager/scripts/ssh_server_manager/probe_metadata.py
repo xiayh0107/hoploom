@@ -42,6 +42,12 @@ def _run(command: list[str], deadline: float) -> subprocess.CompletedProcess[str
     if remaining <= 0:
         return None
     try:
+        from .operations import current_operation
+        if current_operation() is not None:
+            from .execution import capture_command
+            import os
+            return capture_command(command, env=dict(os.environ), timeout=remaining,
+                                   stdout_limit=256 * 1024, stderr_limit=65536)
         return subprocess.run(
             literal_config_args(command), text=True, encoding="utf-8", errors="replace",
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

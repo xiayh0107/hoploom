@@ -10,6 +10,9 @@ while [ -L "$SCRIPT" ]; do
   esac
 done
 ROOT=$(CDPATH= cd -- "$(dirname -- "$SCRIPT")/.." && pwd)
+if [ -x "$ROOT/.venv/bin/hoploom" ]; then
+  exec "$ROOT/.venv/bin/hoploom" "$@"
+fi
 if [ -x "$ROOT/.venv/bin/python" ]; then
   exec "$ROOT/.venv/bin/python" "$ROOT/scripts/hoploom.py" "$@"
 fi

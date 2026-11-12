@@ -45,9 +45,9 @@ const seedEntries = [
 ];
 type RequestRecord = {method: string; path: string; body: string | null};
 
-async function mockApi(page: Page, empty = false, unobserved = false) {
+async function mockApi(page: Page, empty = false, unobserved = false, seedHosts = hosts) {
   const requests: RequestRecord[] = [], unexpected: string[] = [], errors: string[] = [];
-  const inventory = hosts.map(value => ({...value, facts: unobserved ? null : {...value.facts, observed_at: new Date().toISOString()}}));
+  const inventory = seedHosts.map(value => ({...value, facts: unobserved ? null : {...value.facts, observed_at: new Date().toISOString()}}));
   let paths = seedPaths.map(value => ({...value}));
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/v1/**', async route => {
@@ -219,7 +219,7 @@ test(`details hidden at ${width}px preserves Paper lanes and masks rather than r
   await page.setViewportSize({width, height: 900});
   await page.goto('/assets/');
   const headers = page.getByRole('columnheader');
-  await expect(headers).toHaveCount(5);
+  await expect(headers).toHaveCount(7);
   const before = await headers.evaluateAll(nodes => nodes.map(node => ({label: node.textContent, width: node.getBoundingClientRect().width})));
   await page.getByRole('button', {name: 'Hide details', exact: true}).click();
   await expect(page.getByRole('button', {name: 'Details hidden', exact: true})).toHaveAttribute('aria-pressed', 'true');
@@ -643,5 +643,45 @@ test('empty workspace shows useful states across every primary page', async ({pa
     ['Skills', 'Bring your host instructions together'], ['Credentials', 'Add your first identity']]) {
     await nav(page, label).click(); await expect(page.getByRole('heading', {name: heading, exact: true})).toBeVisible();
   }
+  assertClean(state);
+});
+
+test('large inventory keeps rows bounded through scrolling, keyboard navigation and privacy search', async ({page}, testInfo) => {
+  const inventory = Array.from({length: 10_000}, (_, index) => ({...host(`node-${String(index).padStart(5, '0')}`, `large-${index}`), tags: [index % 2 ? 'production' : 'testing']}));
+  const state = await mockApi(page, false, false, inventory);
+  await page.goto('/assets/');
+  const table = page.getByRole('table', {name: 'Hosts'}), rows = table.locator('.host-row');
+  await expect(table).toHaveAttribute('aria-rowcount', '10001');
+  await expect(rows).not.toHaveCount(0);
+  expect(await rows.count()).toBeLessThan(50);
+  await table.evaluate(element => {element.scrollTop = 58 * 5000;});
+  await expect(table.getByRole('button', {name: 'node-05000', exact: true})).toBeVisible();
+  expect(await rows.count()).toBeLessThan(50);
+  await page.keyboard.press('ArrowUp');
+  await expect(table.locator('.cursor')).toHaveAttribute('data-host', 'node-09999');
+  await expect(table.getByRole('button', {name: 'node-09999', exact: true})).toBeVisible();
+  await page.getByRole('button', {name: 'Tag', exact: true}).click();
+  await expect(table).toHaveAttribute('aria-rowcount', '10003');
+  await page.getByRole('textbox', {name: 'Search hosts'}).fill('node-05000.example.invalid');
+  await expect(table.getByRole('button', {name: 'node-05000', exact: true})).toBeVisible();
+  await page.getByRole('button', {name: 'Hide details', exact: true}).click();
+  await expect(page.getByRole('heading', {name: 'No matching hosts'})).toBeVisible();
+  await page.getByRole('textbox', {name: 'Search hosts'}).fill('node-05000');
+  await expect(page.getByRole('button', {name: 'node-05000', exact: true})).toBeVisible();
+  await page.getByRole('button', {name: 'Show details', exact: true}).click();
+  await page.getByRole('textbox', {name: 'Search hosts'}).fill('');
+  await expect(table).toHaveAttribute('aria-rowcount', '10003');
+  await table.evaluate(element => {element.scrollTop = 0;});
+  await expect(table.getByRole('button', {name: 'node-00000', exact: true})).toBeVisible();
+  const dimensions = await table.evaluate(element => {
+    const group = element.querySelector('.group-row')!.getBoundingClientRect();
+    const first = element.querySelector('.host-row')!.getBoundingClientRect();
+    const next = element.querySelectorAll('.host-row')[1].getBoundingClientRect();
+    return {headerGap: first.top - group.bottom, rowGap: next.top - first.bottom};
+  });
+  expect(dimensions).toEqual({headerGap: 0, rowGap: 0});
+  expect(await rows.count()).toBeLessThan(50);
+  await page.screenshot({path: testInfo.outputPath('large-hosts.png')});
+  expect(state.requests.every(request => request.method === 'GET' && /^\/api\/v1\/(runtime|hosts|credentials)$/.test(request.path))).toBe(true);
   assertClean(state);
 });

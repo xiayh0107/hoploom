@@ -125,6 +125,19 @@ Web checks do not accept keys, and changed or revoked keys require investigation
 
 ## Files and saved directories
 
+Above 200 hosts, the inventory renders the visible rows plus eight buffered
+rows at each end. Keyboard navigation keeps its host identity and scrolls to
+off-screen destinations; focused actions stay mounted during scrolling. Group
+and route calculations use local indexes, and hidden fields never enter the
+privacy-mode search index. Local metadata refresh retains the current snapshot
+and merges duplicate reads; a check refreshes its affected hosts.
+
+The directory cache holds at most 40 canonical folders and 20,000 returned
+entries. Home aliases share a folder rather than duplicating its entries.
+Uploads invalidate their actual destination even while the Files page is
+closed. Endpoint, route, account and saved-credential revision changes invalidate
+the affected host cache; ending the browser session clears it.
+
 ![Files workspace using disposable fixture data](https://xiayh0107.github.io/hoploom/assets/ui-files.png)
 
 Files connects to the host you explicitly select and starts at its remote home
@@ -172,7 +185,8 @@ A server without this operation fails safely with an unsupported error.
 Explicit replacement sends `overwrite=true`; the file is staged the same way and
 swapped in with SFTP's atomic rename, so a cancelled or failed replacement leaves
 the original intact. A symlink target, or a server without atomic rename, is
-written in place, and that write cannot be cancelled. Internal staging paths are never
+written in place. Cancellation stops it, but the target may already have changed;
+the dock reports that uncertainty. Internal staging paths are never
 returned. The server reads an upload only after the session, CSRF token and a
 transfer slot are confirmed, stops at the size limit, and streams downloads in
 chunks; its temporary files are removed however the request ends, including

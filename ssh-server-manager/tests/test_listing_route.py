@@ -17,6 +17,7 @@ import pytest
 from ssh_server_manager.remote_listing import (
     NAMESPACE_VERDICT_TTL_SECONDS, UNAVAILABLE_BACKOFF_SECONDS, ListingRoute, host_identity,
 )
+from ssh_server_manager.operations import OperationCancelled, OperationContext, bind_operation, current_operation
 
 
 class Clock:
@@ -64,6 +65,60 @@ def test_one_verdict_answers_every_folder_until_it_expires():
     clock.advance(2)
     assert route.namespace_matches(box(), probe) is True
     assert len(probe.calls) == 2
+
+
+def test_shared_probe_survives_one_consumers_cancel_and_stops_for_the_last():
+    from concurrent.futures import ThreadPoolExecutor
+    import time
+    route = ListingRoute()
+    first, second = OperationContext("srv-1", 3), OperationContext("srv-1", 3)
+    started, finish = threading.Event(), threading.Event()
+    probes = []
+    def probe():
+        operation = current_operation()
+        probes.append(operation)
+        started.set()
+        assert finish.wait(2)
+        operation.check()
+        return True
+    def query(operation):
+        with bind_operation(operation):
+            return route.namespace_matches(box(), probe)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        a = pool.submit(query, first)
+        assert started.wait(1)
+        b = pool.submit(query, second)
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            with route._guard:
+                if next(iter(route._shared_flights.values())).consumers == 2:
+                    break
+            first.canceled.wait(0.005)
+        else:
+            pytest.fail("Second consumer did not subscribe")
+        first.cancel()
+        with pytest.raises(OperationCancelled):
+            a.result(timeout=1)
+        assert not probes[0].canceled.is_set()
+        finish.set()
+        assert b.result(timeout=1) is True
+    assert len(probes) == 1
+    assert route._shared_flights == {}
+
+    route.forget()
+    started.clear(); finish.clear()
+    last = OperationContext("srv-1", 3)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(query, last)
+        assert started.wait(1)
+        flight = next(iter(route._shared_flights.values()))
+        last.cancel()
+        with pytest.raises(OperationCancelled):
+            future.result(timeout=1)
+        assert probes[-1].canceled.is_set()
+        finish.set()
+        assert flight.done.wait(1)
+        assert route.may_try(box())
 
 
 def test_a_repointed_host_or_user_is_a_different_question():

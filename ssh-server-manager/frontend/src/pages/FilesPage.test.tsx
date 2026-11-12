@@ -507,6 +507,39 @@ describe('Files page', () => {
     expect(screen.queryByText('Loading folder…')).not.toBeInTheDocument();
   });
 
+  it('invalidates the upload destination even when the Files page has been closed', async () => {
+    mockBackend();
+    const first = show();
+    await screen.findByRole('button', {name: 'readme.txt'});
+    const upload = deferred<{bytes: number}>(); uploadMock.mockReturnValue(upload.promise);
+    fireEvent.change(screen.getByLabelText('Upload file'), {target: {files: [new File(['new'], 'new.txt')]}});
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledOnce());
+    first.unmount();
+    await act(async () => upload.resolve({bytes: 3}));
+    const pending = deferred<DirectoryListing>();
+    apiMock.mockImplementation(async path => path.endsWith('/paths') ? [] : pending.promise);
+    show();
+    expect(screen.queryByRole('button', {name: 'readme.txt'})).not.toBeInTheDocument();
+    expect(screen.getByText('Loading folder…')).toBeVisible();
+    await act(async () => pending.resolve(listing({enriched: true, entries: [entry('new.txt')]})));
+    expect(screen.getByRole('button', {name: 'new.txt'})).toBeVisible();
+  });
+
+  it('retains metadata-only edits but drops files immediately for a repointed host', async () => {
+    mockBackend(listing({enriched: true}));
+    const first = render(<FilesPage hosts={[hosts[0]]} runtime={runtime}/>);
+    await screen.findByRole('button', {name: 'readme.txt'});
+    first.rerender(<FilesPage hosts={[{...hosts[0], notes: 'Updated local note'}]} runtime={runtime}/>);
+    expect(listingCalls()).toHaveLength(1);
+    const pending = deferred<DirectoryListing>();
+    apiMock.mockImplementation(async path => path.endsWith('/paths') ? [] : pending.promise);
+    first.rerender(<FilesPage hosts={[{...hosts[0], hostname: 'replacement.invalid'}]} runtime={runtime}/>);
+    expect(screen.queryByRole('button', {name: 'readme.txt'})).not.toBeInTheDocument();
+    await waitFor(() => expect(listingCalls()).toHaveLength(2));
+    await act(async () => pending.resolve(listing({enriched: true, entries: [entry('replacement.txt')]})));
+    expect(screen.getByRole('button', {name: 'replacement.txt'})).toBeVisible();
+  });
+
   it('drops cached folders when the session expires', async () => {
     await ready();
     act(() => {window.dispatchEvent(new Event('ssm-session-expired'));});

@@ -10,7 +10,12 @@ permissions:
   contents: read
 
 jobs:
+  verify:
+    if: startsWith(github.ref, 'refs/tags/dsh-hoploom-v')
+    uses: ./.github/workflows/dsh-plugin.yml
+
   publish:
+    needs: verify
     if: startsWith(github.ref, 'refs/tags/dsh-hoploom-v')
     runs-on: ubuntu-latest
     environment: npm
@@ -23,20 +28,13 @@ jobs:
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
       - run: npm install --global npm@11
       - name: Require matching release tag
         working-directory: dsh-hoploom
         run: node --input-type=module -e 'import fs from "node:fs"; const p = JSON.parse(fs.readFileSync("package.json")); if (process.env.GITHUB_REF_NAME !== "dsh-hoploom-v" + p.version) process.exit(1)'
-      - run: python -m pip install build ./ssh-server-manager
-      - run: npm ci --ignore-scripts --prefix ssh-server-manager/frontend
-      - run: npm ci --ignore-scripts --prefix dsh-hoploom
-      - run: npm run build:backend --prefix dsh-hoploom
-        env:
-          HOPLOOM_BUILD_PYTHON: python
-      - run: npm run check --prefix dsh-hoploom
-        env:
-          HOPLOOM_TEST_PYTHON: python
-      - run: npm publish ./dsh-hoploom --access public --provenance
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-hoploom-ubuntu-latest
+          path: verified
+      - name: Publish the already verified complete tarball
+        run: npm publish verified/*.tgz --access public --provenance

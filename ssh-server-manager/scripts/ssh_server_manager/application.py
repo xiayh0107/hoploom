@@ -25,9 +25,10 @@ from .importer import apply_import, preview_import
 from .paths import managed_ssh_config_path
 from .service import CredentialService, SkillService
 from .ssh_config import render_config, validate_include_source
-from .ssh_runner import SSHError, SSHRunner
+from .ssh_runner import SSHError, SSHRunner, TRANSFER_TIMEOUT_GRACE
 from .validation import ValidationError, validate_label
 from .vault import ObservedVault, VaultError, VaultProtocol, get_vault
+from .operations import CancellationToken, OperationContext, OperationError, OperationScheduler, current_operation
 
 
 def _route_hop(alias: str, inventory: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -174,26 +175,53 @@ class HostService:
 
 
 class FileService:
-    def __init__(self, database: Database, runner: Callable[[], SSHRunner]) -> None:
+    def __init__(self, database: Database, runner: Callable[[], SSHRunner], operations: OperationScheduler | None = None) -> None:
         self.database = database
         self.runner = runner
+        self.operations = operations or OperationScheduler()
+
+    @contextmanager
+    def _operation(self, identifier: str, *, timeout: float = 45, transfer: bool = False,
+                   cancel: Event | None = None):
+        host = self.database.get_server(identifier)
+        parent = current_operation()
+        if parent is not None:
+            if parent.host_id != host["id"]:
+                from .operations import OperationError
+                raise OperationError("A nested operation must retain its host scope", "invalid_operation")
+            parent.check()
+            yield parent
+            return
+        operation = OperationContext(host["id"], timeout, transfer=transfer)
+        if isinstance(cancel, CancellationToken):
+            operation.canceled = cancel
+        with self.operations.scope(operation):
+            yield operation
 
     def list_directory(
         self, identifier: str, path: str | None = None, *, name_filter: str | None = None, enrich: bool = True,
     ) -> dict[str, Any]:
-        if name_filter is None:
-            return self.runner().list_directory(identifier, path, enrich=enrich)
-        return self.runner().list_directory(identifier, path, name_filter=name_filter, enrich=enrich)
+        with self._operation(identifier):
+            if name_filter is None:
+                return self.runner().list_directory(identifier, path, enrich=enrich)
+            return self.runner().list_directory(identifier, path, name_filter=name_filter, enrich=enrich)
 
     def enrich_directory(self, identifier: str, path: str, claims: list[dict[str, Any]]) -> dict[str, Any]:
         """Optional precise metadata for a directory the caller already listed."""
-        return self.runner().enrich_listing(identifier, path, claims)
+        with self._operation(identifier):
+            return self.runner().enrich_listing(identifier, path, claims)
 
     def download(self, identifier: str, remote_path: str, local_path: str | Path, **options: Any) -> dict[str, Any]:
-        return self.runner().download(identifier, remote_path, local_path, **options)
+        if options.get("stream"):
+            return self.runner().download(identifier, remote_path, local_path, **options)
+        with self._operation(identifier, timeout=min(86400, (options.get("timeout", 120) + TRANSFER_TIMEOUT_GRACE) * 4), transfer=True, cancel=options.get("cancel")):
+            return self.runner().download(identifier, remote_path, local_path, **options)
 
     def upload(self, identifier: str, local_path: str | Path, remote_path: str, **options: Any) -> dict[str, Any]:
-        return self.runner().upload(identifier, local_path, remote_path, **options)
+        if options.get("stream"):
+            return self.runner().upload(identifier, local_path, remote_path, **options)
+        with self._operation(identifier, timeout=min(86400, (options.get("timeout", 120) + TRANSFER_TIMEOUT_GRACE) * 4), transfer=True, cancel=options.get("cancel")):
+            return self.runner().upload(identifier, local_path, remote_path, **options)
 
     def download_tree(self, identifier: str, remote_path: str, local_path: str | Path, **options: Any) -> dict[str, Any]:
         return self.runner().download_tree(identifier, remote_path, local_path, **options)
@@ -224,19 +252,33 @@ class FileService:
 
 
 class DiagnosticsService:
-    def __init__(self, runner: Callable[[], SSHRunner], database: Database) -> None:
+    def __init__(self, runner: Callable[[], SSHRunner], database: Database, operations: OperationScheduler | None = None) -> None:
         self.runner = runner
         self.database = database
         self._bulk_slots = BoundedSemaphore(4)
+        self.operations = operations or OperationScheduler()
+
+    @contextmanager
+    def _operation(self, identifier: str, timeout: int, stages: int):
+        host = self.database.get_server(identifier)
+        parent = current_operation()
+        if parent is not None and parent.host_id != host["id"]:
+            raise OperationError("A nested operation must retain its host scope", "invalid_operation")
+        operation = parent or OperationContext(host["id"], (timeout + 5) * stages + 2)
+        with self.operations.scope(operation):
+            yield
 
     def test(self, identifier: str, *, timeout: int = 8) -> dict[str, Any]:
-        return self.runner().test(identifier, timeout=timeout)
+        with self._operation(identifier, timeout, 1):
+            return self.runner().test(identifier, timeout=timeout)
 
     def diagnose(self, identifier: str, *, timeout: int = 8) -> dict[str, Any]:
-        return self.runner().diagnose(identifier, timeout=timeout)
+        with self._operation(identifier, timeout, 8):
+            return self.runner().diagnose(identifier, timeout=timeout)
 
     def observe(self, identifier: str, *, timeout: int = 8) -> dict[str, Any]:
-        return self.runner().observe(identifier, timeout=timeout)
+        with self._operation(identifier, timeout, 6):
+            return self.runner().observe(identifier, timeout=timeout)
 
     def test_many(self, identifiers: list[str], *, timeout: int = 8, concurrency: int = 4) -> dict[str, Any]:
         return self._probe_many(identifiers, self.test, timeout=timeout, concurrency=concurrency)
@@ -256,9 +298,11 @@ class DiagnosticsService:
             hosts[host["id"]] = host
         def check(host: dict[str, Any]) -> dict[str, Any]:
             try:
-                with self._bulk_slots:
-                    return probe(host["id"], timeout=timeout)
-            except (SSHError, VaultError, ValidationError, NotFoundError):
+                operation = OperationContext(host["id"], (timeout + 5) * (6 if observe else 1) + 2, bulk=True)
+                with self.operations.scope(operation):
+                    with self._bulk_slots:
+                        return probe(host["id"], timeout=timeout)
+            except (SSHError, VaultError, ValidationError, NotFoundError, OperationError):
                 return {"alias": host["alias"], "ok": False, "latency_ms": 0,
                         "error_code": "observation-failed" if observe else "check-failed",
                         "message": "Host info collection failed; run diagnose for details" if observe else
@@ -696,12 +740,21 @@ class ApplicationServices:
                 return state["instance"]
 
         self.runner = shared_runner
+        self.operations = OperationScheduler()
+        def close() -> None:
+            self.operations.close()
+            self.operations.wait_idle()
+            with guard:
+                runner = state.get("instance")
+            if runner is not None:
+                runner.close()
+        self.close = close
         self.render_config = lambda: (config_renderer or render_config)(database)
         self.hosts = HostService(database, self.render_config)
         self.tunnels = TunnelService(database)
         self.audit = AuditService(database)
-        self.files = FileService(database, self.runner)
-        self.diagnostics = DiagnosticsService(self.runner, database)
+        self.files = FileService(database, self.runner, self.operations)
+        self.diagnostics = DiagnosticsService(self.runner, database, self.operations)
         self.connections = ConnectionService(self.runner, database)
         self.credentials = CredentialApplicationService(database, vault_factory or get_vault, self.render_config)
         self.skills = SkillService(database)

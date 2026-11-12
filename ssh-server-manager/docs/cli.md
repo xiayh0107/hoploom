@@ -33,6 +33,16 @@ remote tests only for onboarding or turn the handoff into a CLI tutorial.
 
 ## Web UI
 
+Bounded remote operations select the Rust execution core by default. Set the
+`HOPLOOM_EXECUTOR` environment variable to `python` for an explicit temporary
+rollback. A running operation is never replayed with another implementation.
+The `executor` row in `doctor --json` reports the selection, native package
+version, availability and runtime initialization; importing it creates no
+workers. Help, version and local inventory reads do not initialize the runtime.
+Native unavailability, a full operation queue and bounded-output failures have
+structured `error_code` values in CLI JSON. A queue failure or user cancellation
+does not establish that a host is unreachable.
+
 ```
 hoploom web [--port PORT] [--no-open --url-file PATH]
 hoploom web --credential ALIAS [--port PORT] [--no-open --url-file PATH]

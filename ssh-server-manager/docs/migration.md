@@ -1,6 +1,6 @@
 # Upgrade to Hoploom
 
-Hoploom 0.11.0 adopts one public name for the product, package, command,
+Hoploom 0.12.0 adopts one public name for the product, package, command,
 repository and Agent Skill. The former product names were SSH Server Manager
 and servers-connect. `serverctl` remains a compatible command.
 
@@ -36,7 +36,7 @@ finish running sessions before replacing executable files. Keep a private
 backup of the metadata database; do not export secrets or delete OS-vault
 entries. See [installation](installation.md) for database backup instructions.
 
-The package-manager commands below require Hoploom 0.11.0 to have been
+The package-manager commands below require Hoploom 0.12.0 to have been
 published. Before that, use the reviewed source checkout or its local wheel.
 
 ## pipx and uv

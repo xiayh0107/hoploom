@@ -98,6 +98,15 @@ the user can now accomplish.
 
 ## Quick start
 
+Bounded checks, diagnostics, remote directory reads and captured file transfers
+use the native executor by default. `doctor --json` has a local `executor` row;
+it does not start the execution runtime or test a host. Repair a missing or
+mismatched native package by reinstalling the matching Hoploom wheel. The
+explicit temporary rollback is the `HOPLOOM_EXECUTOR=python` environment
+setting; report its use without making the user choose an implementation menu.
+Never silently change executors or replay a write after failure, timeout or
+cancel. A `busy` response means capacity is occupied, not that a host failed.
+
 Use `hoploom` from PATH when available; otherwise run the launcher from
 this skill directory:
 
@@ -107,7 +116,11 @@ this skill directory:
 ./scripts/hoploom ui
 ```
 
-If the launcher reports missing dependencies, run `./scripts/bootstrap` once. Read `references/commands.md` for the complete command surface.
+For a released Skill, repair missing dependencies by re-running the one-line
+installer, which installs the published wheel and matching Skill tag. Only a
+source checkout should run `./scripts/bootstrap`; it requires the pinned Rust
+toolchain. Keep the existing install-path overrides. Read `references/commands.md`
+for the complete command surface.
 Use `references/troubleshooting.md` when a UI port, remote command, file stream,
 or externally published service behaves unexpectedly.
 

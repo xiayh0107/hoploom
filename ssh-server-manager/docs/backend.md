@@ -58,6 +58,39 @@ selection and Uvicorn startup.
 
 ## API v1
 
+Bounded remote work uses a shared `OperationContext`, `ExecutionSpec` and task
+handle. Python owns policy, authorization, credentials and command generation;
+the selected execution core owns processes and bounded pipes. Rust is the
+default, with `HOPLOOM_EXECUTOR=python` as an explicit rollback. The PyO3 module
+initializes its two-thread Tokio runtime only on first execution. Synchronous
+waits detach from Python; asynchronous completion is notified without a Python
+polling task or waiter thread per Rust process.
+
+One operation covers queue waiting, probes and fallback, with eight active
+operations, two per host and at most 64 queued callers, including batch waiters.
+Batch concurrency is enforced within that same scheduler. Nested substeps reuse
+the parent's permit. Directory requests have a 45-second total deadline.
+Cancellation, disconnect and session expiry stop only the owning operation;
+canceled work does not record a host failure. Shared namespace probes retain
+one consumer per waiting request and stop when the last consumer leaves.
+
+Request processes use private POSIX process groups or suspended Windows
+processes attached to a kill-on-close Job before they can start helpers.
+Foreground shared OpenSSH masters have their own lifetime, separate from every
+request group, with operation leases and idle expiration. The master cache holds
+at most 64 entries. Immutable mode-600 request configs disable inherited helper
+multiplexing without editing the user's config; a master retains its startup
+config until it exits. Cancellation of one task therefore preserves other tasks
+and their shared connection. Cleanup of an operation's own remote staging file
+uses an independent three-second deadline.
+
+Pipe output is capped while reading. An output overflow is an explicit
+`output_limit` error, never a partial success. Canceled, timed-out, over-limit,
+failed-start and failed-cleanup results have no successful exit code. The API
+returns 503 with `Retry-After` for `busy` or `executor_unavailable`, 504 for an
+operation deadline, and a structured failure for other execution errors. No
+failure automatically changes executors or replays a write.
+
 All endpoints require the existing browser session established by consuming the
 single-use launch URL. Read `/api/v1/runtime` first for the session CSRF token,
 version, shell, authentication metadata and capabilities. `ui` is `modern`;
@@ -136,17 +169,19 @@ a concurrently created target. Failure attempts to remove only the temporary
 file. Servers without hardlink support return `unsupported` (501), with no
 direct-put fallback. Explicit `overwrite=true` stages the same way and replaces
 a regular target with the `posix-rename@openssh.com` atomic rename; a symlink or
-other target type, or a server without that extension, gets a direct put that
-cannot be cancelled. CLI `put` keeps its existing overwrite behavior. Web file paths reject dot/parent
+other target type, or a server without that extension, gets a direct put. It
+can be canceled, but its target may already have changed; the UI reports that
+uncertainty. CLI `put` keeps its existing overwrite behavior. Web file paths reject dot/parent
 segments and trailing directory paths; local staging filenames are fixed.
 Versioned transfer results omit the internal staging path.
 
 Web transfers share two server slots; eight more requests wait, and beyond that
 the routes answer `503` with `error_code: busy` and `Retry-After`. An upload is
 read only after its session, CSRF token and slot are confirmed. While SFTP runs,
-Hoploom watches the request: a browser disconnect terminates that sftp process
-alone (never its process group, so a shared ControlMaster and its ProxyJump
-helper keep serving other requests), removes the staged copy and frees the slot.
+Hoploom watches the request: a browser disconnect terminates the request-owned
+SFTP process group or Windows Job, removes its staged copy and frees the slot.
+Shared ControlMasters and their ProxyJump helpers have separate owners and keep
+serving other requests.
 A client may name the request with `transfer_id` (16–64 characters of
 `A-Za-z0-9_-`). While it runs, `GET /api/v1/transfers/{transfer_id}` from the
 same browser session returns `phase` (`waiting`, `receiving` or `host`),

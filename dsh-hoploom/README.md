@@ -36,16 +36,19 @@ machine's inventory and vault, including when accessing dsh from elsewhere.
 No API key is needed by this plugin. Remote SSH operations require the system
 OpenSSH client and a usable OS credential vault where credentials are stored.
 
-Automatic setup supports macOS, Windows and Linux (glibc), on x64 and ARM64.
+Automatic setup supports macOS, Windows and Linux (glibc or musl), on x64 and ARM64.
 It downloads checksum-pinned [uv](https://github.com/astral-sh/uv) from Astral's
 GitHub releases, managed Python, and dependencies from PyPI. Hoploom itself is
 bundled in the npm package. System Python and shell profiles are not modified.
 Completed environments are reused on later starts, including offline.
+The bundle contains eight native wheels. Selection uses the managed Python's
+actual compatibility tags, then checks SHA-256 and native version; its cache
+identity includes the platform and selected wheel. No Rust compiler is needed.
 
 A downloaded [release artifact](https://github.com/xiayh0107/hoploom/releases) also works:
 
 ```sh
-dsh plugin --profile web add /absolute/path/dsh-hoploom-0.2.2.tgz
+dsh plugin --profile web add /absolute/path/dsh-hoploom-0.3.0.tgz
 ```
 
 Update with `dsh plugin --profile web update dsh-hoploom@latest`. Remove with
@@ -153,7 +156,8 @@ npm run build
 # This Python environment needs Hoploom's dependencies and the build package.
 HOPLOOM_BUILD_PYTHON=/absolute/path/to/python npm run build:backend
 HOPLOOM_TEST_PYTHON=/absolute/path/to/python HOPLOOM_TEST_BOOTSTRAP=1 npm test
-npm pack
+# Local development tarball only; formal prepack requires all eight wheels.
+npm pack --ignore-scripts
 ```
 
 The wheel is built only from tracked public backend source, including its built
@@ -161,8 +165,15 @@ UI. The npm package also includes the private Python UI adapter and a build of
 that same frontend source. Tests isolate state, use the real dsh tool registry,
 cover embedded sessions, CSRF, streaming, cancellation and the client panel,
 and verify a fresh managed Python installation plus offline reuse. CI runs on
-Linux, macOS and Windows. Without `HOPLOOM_TEST_PYTHON`, existing-backend
+Linux, macOS and Windows. Release wheel checks also execute both Linux libcs and
+each supported architecture. Without `HOPLOOM_TEST_PYTHON`, existing-backend
 integration tests skip; `HOPLOOM_TEST_BOOTSTRAP=1` opts into network setup tests.
+
+For publication, download `native-dist` from this clean commit's workflow and
+set `HOPLOOM_WHEEL_DIR=/absolute/path/to/native-dist` when running `build:backend`.
+Then `npm pack` verifies the complete set and source commit. It cannot rebuild
+or silently shrink that set to the developer's platform. The publish workflow
+publishes the already verified tarball.
 
 The adapter has an independent version and `dsh-hoploom-vX.Y.Z` tags. See the
 [maintainer guide](https://github.com/xiayh0107/hoploom/blob/main/ssh-server-manager/docs/dsh-plugin.md)
