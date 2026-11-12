@@ -37,4 +37,4 @@ jobs:
           name: dsh-hoploom-ubuntu-latest
           path: verified
       - name: Publish the already verified complete tarball
-        run: npm publish verified/*.tgz --access public --provenance
+        run: npm publish ./verified/*.tgz --access public --provenance

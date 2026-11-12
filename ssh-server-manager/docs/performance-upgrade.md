@@ -11,9 +11,9 @@ starting point, not proof that its complete milestone is finished.
 - [x] Bounded directory cache, identity and upload invalidation, retained metadata on refresh.
 - [x] Shared operation/execution contract, bounded scheduling and request cancellation.
 - [x] Rust/PyO3/Tokio executor with equivalent Python rollback and platform process isolation.
-- [ ] Native build, platform wheels/sdist, DSH selection and offline cache, installers and CI.
+- [x] Native build, platform wheels/sdist, DSH selection and offline cache, installers and CI.
 - [x] Doctor/CLI/Skill/API documentation and generated contracts/assets.
-- [ ] Full behavioral, cancellation, packaging and browser regressions; review against every requirement.
+- [x] Full behavioral, cancellation, packaging and browser regressions; review against every requirement.
 - [ ] Publish Python/plugin releases and prepare the Homebrew update from PyPI's actual sdist.
 
 ## Original agreed plan
@@ -25,20 +25,24 @@ and immutable request configs have independent owners. Native wheel/sdist
 builds and clean macOS installs pass, including both CLI names, binary results,
 timeout/cancel behavior, built UI and Skill source-shadowing protection.
 
-Local evidence: 927 Python passes plus four new packaging checks, 146 frontend
-unit tests, all 31 browser cases (29 in the full run and two corrected ARIA
-header assertions rerun), and 30 plugin checks with one platform-only skip,
-including managed Python download and offline reuse. Source archive checks,
-rebuild/install and the populated 0.8.0 upgrade have separate smoke checks.
-Rust core tests, fmt/clippy and a Windows cross-compilation check pass.
+Final regression evidence: 934 Python passes (8 platform-only skips locally),
+146 frontend unit tests, all 31 browser cases, and 30 plugin checks with one
+platform-only skip, including managed Python download and offline reuse. Source
+archive checks, rebuild/install and the populated 0.8.0 upgrade have separate
+smoke checks. Rust core tests and fmt/clippy pass.
 
-The eight-target native pipeline, complete-manifest/prepack gate, actual Python
-tag selection and published-wheel installers are implemented. Commit c91e752's
-workflow 43318513235 passed all eight installed-wheel execution checks, sdist
-rebuild/install, complete artifact collection and macOS/Linux/Windows plugin
-checks including managed Python, offline reuse and formal prepack. The final
-batch-queue fix and upstream PR #20 integration need their final regression run.
-Publication is still pending; this is not a completed release.
+[PR #22](https://github.com/xiayh0107/hoploom/pull/22) merged the implementation
+at `cbc567f`. Final candidate workflows
+[43321477638](https://github.com/xiayh0107/hoploom/actions/runs/43321477638) and
+[43321478001](https://github.com/xiayh0107/hoploom/actions/runs/43321478001)
+passed the Python 3.10/3.13 matrix on macOS/Linux/Windows, browser regressions,
+all eight installed native wheels, sdist rebuild/install and three-platform
+plugin checks including formal prepack. The packaged plugin also loaded the
+Hoploom interface in a real isolated dsh installation. The main-commit workflows
+passed again after merge. GitHub release `v0.12.0` includes all eight native
+wheels and the sdist. The publication-path correction is prepared as Python
+0.12.1 and plugin 0.3.1 so both distributions can still be built from one
+source commit. Registry publication and Homebrew delivery remain pending.
 
 # Hoploom 性能与交互体验升级计划
 
