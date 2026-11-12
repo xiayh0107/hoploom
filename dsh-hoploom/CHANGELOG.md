@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-11-12
+
+- Publish the verified local tarball with an explicit relative file path so
+  npm does not interpret it as a GitHub repository. Includes the 0.3.0 native
+  backend and lifecycle improvements.
+
 ## 0.3.0 — 2026-11-12
 
 - Bundle Hoploom 0.12.0 native wheels for macOS/Windows and glibc/musl Linux,
