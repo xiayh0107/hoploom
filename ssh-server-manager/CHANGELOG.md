@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.12.1 — 2026-11-12
+
+- Pair the native Python distribution with dsh-hoploom 0.3.1 from the same
+  source commit after correcting the npm publication path. Includes the
+  performance, native executor and installation improvements from 0.12.0.
+
 ## 0.12.0 — 2026-11-12
 
 - Ship the native executor in the unified maturin package, with pinned Rust and

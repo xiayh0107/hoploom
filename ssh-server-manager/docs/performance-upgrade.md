@@ -40,7 +40,9 @@ all eight installed native wheels, sdist rebuild/install and three-platform
 plugin checks including formal prepack. The packaged plugin also loaded the
 Hoploom interface in a real isolated dsh installation. The main-commit workflows
 passed again after merge. GitHub release `v0.12.0` includes all eight native
-wheels and the sdist; registry publication and Homebrew delivery remain pending.
+wheels and the sdist. The publication-path correction is prepared as Python
+0.12.1 and plugin 0.3.1 so both distributions can still be built from one
+source commit. Registry publication and Homebrew delivery remain pending.
 
 # Hoploom 性能与交互体验升级计划
 
