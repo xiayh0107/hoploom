@@ -137,6 +137,34 @@ def test_windows_callback_encodes_fixed_script_and_keeps_metadata_out_of_cmd(mon
             _windows_callback_command(powershell, invalid)
 
 
+def test_msys_client_renders_shell_commands_without_request_paths(request_state, monkeypatch, tmp_path):
+    import ssh_server_manager.credential_probe as module
+
+    database, credential, host, vault = request_state
+    database.create_server(alias="jump", hostname="127.0.0.1", username="fixture", port=22,
+                           credential_id=credential["id"])
+    database.update_server(host["id"], proxy_jumps=["jump"])
+    monkeypatch.setattr(module, "_uses_msys_client", lambda binary: True)
+    runner = CredentialProbeRunner(database, lambda: vault, ssh_binary="fixture-ssh")
+    assert runner.msys_client
+    hops = runner._hops(database.get_server(host["id"]), credential)
+    config, manifest = runner._prepare(tmp_path, hops, 8)
+    text = config.read_text()
+    commands = [line.strip() for line in text.splitlines()
+                if line.strip().startswith(("LocalCommand", "ProxyCommand"))]
+    assert commands == [
+        'LocalCommand "$SSM_CREDENTIAL_PROBE_PYTHON" "$SSM_CREDENTIAL_PROBE_HELPER" '
+        'callback "$SSM_CREDENTIAL_PROBE_MANIFEST" 0',
+        "ProxyCommand none",
+        'LocalCommand "$SSM_CREDENTIAL_PROBE_PYTHON" "$SSM_CREDENTIAL_PROBE_HELPER" '
+        'callback "$SSM_CREDENTIAL_PROBE_MANIFEST" 1',
+        'ProxyCommand "$SSM_CREDENTIAL_PROBE_PYTHON" "$SSM_CREDENTIAL_PROBE_HELPER" '
+        'proxy "$SSM_CREDENTIAL_PROBE_MANIFEST" 0',
+    ]
+    assert all(str(tmp_path) not in line and str(manifest) not in line for line in commands)
+    assert "powershell" not in text.casefold()
+
+
 def test_proxy_helper_reads_destination_from_manifest_without_shell_argument(tmp_path, monkeypatch):
     import ssh_server_manager.credential_probe_helper as helper
 
@@ -988,7 +1016,8 @@ def loopback_servers():
 
 
 def fixture_runner(database, vault, tmp_path, servers, *, trust=True):
-    if not shutil.which("ssh"):
+    selected = os.environ.get("SSM_TEST_SSH_CLIENT") or shutil.which("ssh")
+    if not selected:
         pytest.skip("OpenSSH client is required for loopback authentication fixtures")
     known_hosts = tmp_path / "known_hosts"
     known_hosts.write_text("\n".join(
@@ -1003,7 +1032,7 @@ def fixture_runner(database, vault, tmp_path, servers, *, trust=True):
                 output.write(f"  UserKnownHostsFile {quote_value(str(known_hosts))}\n  GlobalKnownHostsFile none\n")
             return config, manifest
 
-    return IsolatedRunner(database, lambda: vault)
+    return IsolatedRunner(database, lambda: vault, ssh_binary=selected)
 
 
 def _ssh_client_metadata(binary):
@@ -1053,7 +1082,8 @@ def probe_evidence(monkeypatch):
     # Inspect the same default selection as CredentialProbeRunner before its
     # authentication deadline begins. The -V command makes no SSH connection.
     proof_observer = os.environ.get("SSM_TEST_NATIVE_PROOF") != "1"
-    evidence = {"client": _ssh_client_metadata(shutil.which("ssh")), "proof_observer": proof_observer,
+    evidence = {"client": _ssh_client_metadata(os.environ.get("SSM_TEST_SSH_CLIENT") or shutil.which("ssh")),
+                "proof_observer": proof_observer,
                 "events": [], "processes": [], "method_checks": [], "method_reads": [], "proof_results": []}
     original_tree = module._ProcessTree
     original_broker = module._Broker

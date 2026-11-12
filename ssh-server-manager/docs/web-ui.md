@@ -282,7 +282,9 @@ including one not yet bound to that credential. It shows live stages and the
 real method/outcome, runs no remote command, and preserves the host's binding
 and health history. Password tests use only password authentication; key tests
 use the selected private key; agent tests use only the agent without default
-key fallback. Normal host connections continue to use the managed OpenSSH
+key fallback. The test uses the OpenSSH client Hoploom selected; on Windows
+both the inbox `System32\OpenSSH` client and Git/MSYS OpenSSH are supported.
+Normal host connections continue to use the managed OpenSSH
 configuration. An unauthenticated `none` connection is reported as
 `credential-not-used`. Test history belongs to the credential version; replacing
 its material clears the current verified result while preserving older history.
