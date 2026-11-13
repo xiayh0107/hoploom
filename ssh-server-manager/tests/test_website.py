@@ -15,7 +15,8 @@ def test_marketing_page_declares_utf8_before_localized_copy():
 def test_marketing_page_stays_on_the_simple_paint_path():
     encoded = WEBSITE_HTML.encode()
 
-    # The scenario demo stays lightweight: no framework or SVG; product screenshots load lazily.
+    # The landing page stays lightweight: no framework or inline SVG; the map
+    # uses one small canvas asset and product screenshots load lazily.
     assert len(encoded) <= 90_000
     assert len(gzip.compress(encoded, compresslevel=9, mtime=0)) <= 21_000
     assert "backdrop-filter" not in WEBSITE_HTML
@@ -37,10 +38,11 @@ def test_marketing_page_leads_with_the_human_agent_workflow():
     hero = WEBSITE_HTML.split('<section class="hero"', 1)[1].split("</section>", 1)[0]
 
     assert "Human + Agent SSH workspace" in hero
-    assert "SSH workspace." in hero
-    assert "You and your Agent." in hero
-    # The hero sells the split of duties, not a feature list.
-    assert "not secrets" in hero
+    assert "signal path" in hero
+    assert "for every host." in hero
+    # The hero sells observable context and local secret boundaries.
+    assert "context" in hero
+    assert "vault" in hero
     # It routes to the three things a visitor can do next: read, install, try.
     assert 'href="docs/quickstart.html"' in hero
     assert "open-agent-dialog" in hero
@@ -78,6 +80,15 @@ def test_marketing_page_is_an_interactive_product_demo():
     for hue in range(6):
         assert f".tg-{hue}" in WEBSITE_HTML
     assert 'id="agentDialog"' in WEBSITE_HTML
+
+
+def test_marketing_page_has_the_semantic_observation_map():
+    assert 'id="semanticMap"' in WEBSITE_HTML
+    assert 'id="semanticCanvas"' in WEBSITE_HTML
+    assert WEBSITE_HTML.count('data-flow-step=') == 4
+    assert '<svg' not in WEBSITE_HTML
+    assert (REPO_ROOT / "website/assets/semantic-map.css").is_file()
+    assert (REPO_ROOT / "website/assets/semantic-map.js").is_file()
 
 
 def test_marketing_demo_shows_host_scoped_skill_workflow():
