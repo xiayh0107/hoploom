@@ -1,8 +1,8 @@
 # Performance upgrade implementation record
 
-The agreed 2026-11-04 plan is preserved below. Implementation uses the
-`codex/performance-upgrade` branch. Existing transfer work (`6f469c9`) is the
-starting point, not proof that its complete milestone is finished.
+The agreed 2026-11-04 plan is preserved below. This record tracks the
+implementation, validation and releases. Existing transfer work (`6f469c9`)
+provided the starting point for the complete upgrade.
 
 ## Delivery checklist
 
@@ -14,35 +14,55 @@ starting point, not proof that its complete milestone is finished.
 - [x] Native build, platform wheels/sdist, DSH selection and offline cache, installers and CI.
 - [x] Doctor/CLI/Skill/API documentation and generated contracts/assets.
 - [x] Full behavioral, cancellation, packaging and browser regressions; review against every requirement.
-- [ ] Publish Python/plugin releases and prepare the Homebrew update from PyPI's actual sdist.
+- [x] Publish GitHub native release 0.12.1 and npm plugin 0.3.1 from the same commit.
+- [ ] Configure the `hoploom` PyPI Trusted Publisher and retry the failed upload.
+- [ ] Prepare and validate the Homebrew update from PyPI's actual sdist.
 
-## Original agreed plan
+## Implementation evidence
 
-Implementation checkpoint (2026-11-12): Hoploom 0.12.0's native core is
+Implementation checkpoint (2026-11-12): Hoploom 0.12.1's native core is
 compiled and used by bounded diagnostics, directory/metadata reads and captured
 transfers. Rust/Python share real-process contracts. Shared foreground masters
-and immutable request configs have independent owners. Native wheel/sdist
-builds and clean macOS installs pass, including both CLI names, binary results,
-timeout/cancel behavior, built UI and Skill source-shadowing protection.
+and immutable request configs have independent owners. Both Windows executors
+retain job-member synchronization handles and wait for confirmed descendant
+exit before completing cancellation; the real-process assertion repeats ten
+times per executor.
 
-Final regression evidence: 934 Python passes (8 platform-only skips locally),
-146 frontend unit tests, all 31 browser cases, and 30 plugin checks with one
-platform-only skip, including managed Python download and offline reuse. Source
-archive checks, rebuild/install and the populated 0.8.0 upgrade have separate
-smoke checks. Rust core tests and fmt/clippy pass.
+Final local evidence: 934 Python passes (8 platform-only skips), 146 frontend
+unit tests, all 31 browser cases, and 30 plugin checks with one platform-only
+skip, including managed Python download and offline reuse. Source archive
+checks, rebuild/install and the populated 0.8.0 upgrade have separate smoke
+checks. Rust core tests, fmt/clippy and Windows-target clippy pass.
 
-[PR #22](https://github.com/xiayh0107/hoploom/pull/22) merged the implementation
-at `cbc567f`. Final candidate workflows
-[43321477638](https://github.com/xiayh0107/hoploom/actions/runs/43321477638) and
-[43321478001](https://github.com/xiayh0107/hoploom/actions/runs/43321478001)
-passed the Python 3.10/3.13 matrix on macOS/Linux/Windows, browser regressions,
-all eight installed native wheels, sdist rebuild/install and three-platform
-plugin checks including formal prepack. The packaged plugin also loaded the
-Hoploom interface in a real isolated dsh installation. The main-commit workflows
-passed again after merge. GitHub release `v0.12.0` includes all eight native
-wheels and the sdist. The publication-path correction is prepared as Python
-0.12.1 and plugin 0.3.1 so both distributions can still be built from one
-source commit. Registry publication and Homebrew delivery remain pending.
+[PR #22](https://github.com/xiayh0107/hoploom/pull/22) merged the implementation;
+[PR #23](https://github.com/xiayh0107/hoploom/pull/23) fixed npm's tarball path
+and Windows termination confirmation, then aligned the patch releases at
+`8dd09cbb9c66f14d851db21eaf3cf56927d9c353`. Both final main-commit workflows
+passed: [Python 3.10/3.13 on macOS/Linux/Windows, Rust and browser
+regressions](https://github.com/xiayh0107/hoploom/actions/runs/43331832939), and
+[all eight installed native wheels, sdist rebuild/install and three-platform
+plugin/prepack checks](https://github.com/xiayh0107/hoploom/actions/runs/43331833066).
+Windows also passed the repeated independent native/MSYS credential probes.
+
+[Hoploom 0.12.1](https://github.com/xiayh0107/hoploom/releases/tag/v0.12.1)
+contains all eight native wheels, the sdist and complete manifest.
+[dsh-hoploom 0.3.1](https://www.npmjs.com/package/dsh-hoploom/v/0.3.1) is
+published with GitHub Actions provenance; its
+[GitHub release](https://github.com/xiayh0107/hoploom/releases/tag/dsh-hoploom-v0.3.1)
+attaches the actual registry tarball. The downloaded package's SHA-512/SHA-1,
+all eight wheel SHA-256 values, backend 0.12.1 and source commit were verified.
+The final tarball installed and composed successfully in an isolated real dsh
+profile. Its UI/client/bridge files are byte-identical to the previously
+reviewed real-dsh UI build, so those visual observations remain valid.
+
+Remaining delivery requires the PyPI account configuration. [The PyPI upload](https://github.com/xiayh0107/hoploom/actions/runs/43332673316)
+passed every build check but returned `invalid-publisher`: no Trusted Publisher
+matches the new project. Configure a pending publisher on PyPI with project
+`hoploom`, GitHub owner `xiayh0107`, repository `hoploom`, workflow `publish.yml`
+and environment `pypi`, then rerun the failed publishing job. Homebrew must wait
+for the actual PyPI sdist; render its URL/hash with `prepare_packaging`, update
+the build/runtime resources and open the tap PR with the formula rename mapping.
+The checklist stays incomplete until those steps are delivered.
 
 # Hoploom 性能与交互体验升级计划
 
