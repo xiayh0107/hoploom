@@ -1,0 +1,88 @@
+.semantic-map {
+  position: relative;
+  min-height: 438px;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px),
+    radial-gradient(circle at 50% 48%, rgba(255,255,255,.08), transparent 58%),
+    #050505;
+  background-size: 42px 42px, 42px 42px, auto, auto;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025), 0 22px 70px rgba(0,0,0,.38);
+}
+.semantic-map::before,
+.semantic-map::after {
+  position: absolute;
+  z-index: 1;
+  color: var(--text-tertiary);
+  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.semantic-map::before { content: "OBS / 001"; top: 18px; left: 20px; }
+.semantic-map::after { content: "LOCAL SIGNAL PATH"; right: 20px; bottom: 18px; }
+.semantic-map canvas { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; }
+.map-node {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 116px;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.48);
+  border-radius: 999px;
+  background: rgba(5,5,5,.86);
+  color: var(--text);
+  text-align: center;
+  transition: border-color var(--transition), color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.map-node::before,
+.map-node::after { content: ""; position: absolute; border: 1px dashed rgba(255,255,255,.22); border-radius: inherit; inset: -10px; pointer-events: none; }
+.map-node::after { inset: -22px; border-style: solid; border-color: rgba(255,255,255,.09); }
+.map-node:hover,
+.map-node.active { border-color: var(--accent-strong); color: var(--accent-strong); transform: translateY(-3px); box-shadow: 0 0 0 1px rgba(69,184,171,.28), 0 0 38px var(--accent-glow); }
+.map-node.active::before { border-color: var(--accent); animation: map-ring 2.8s ease-in-out infinite; }
+.map-node span { display: block; font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; text-transform: uppercase; }
+.map-node[data-flow-step="substrate"] { left: 11%; top: 45%; }
+.map-node[data-flow-step="propose"] { left: 42%; top: 22%; }
+.map-node[data-flow-step="verified"] { right: 11%; top: 45%; }
+.map-node[data-flow-step="unresolved"] { right: 19%; bottom: 10%; width: 88px; border-style: dashed; opacity: .78; }
+.map-node[data-flow-step="unresolved"]::before { border-style: dotted; }
+.map-node[data-flow-step="unresolved"]::after { display: none; }
+.map-readout {
+  position: absolute;
+  z-index: 4;
+  left: 24px;
+  right: 24px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.map-readout strong { color: var(--text); font-weight: 600; }
+.map-readout code { color: var(--accent-strong); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.map-legend { display: flex; gap: 12px; color: var(--text-tertiary); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.map-legend i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-strong); box-shadow: 0 0 8px var(--accent-glow); }
+.map-legend .unresolved-dot { border: 1px dashed var(--text-tertiary); background: transparent; box-shadow: none; }
+@keyframes map-ring { 0%,100% { transform: scale(.97); opacity: .55; } 50% { transform: scale(1.04); opacity: 1; } }
+@media (max-width: 768px) { .semantic-map { min-height: 390px; } }
+@media (max-width: 580px) {
+  .semantic-map { min-height: 350px; }
+  .map-node { width: 88px; }
+  .map-node[data-flow-step="substrate"] { left: 5%; }
+  .map-node[data-flow-step="verified"] { right: 5%; }
+  .map-node[data-flow-step="propose"] { left: 38%; top: 20%; }
+  .map-node[data-flow-step="unresolved"] { right: 9%; bottom: 15%; width: 68px; }
+  .map-readout { left: 16px; right: 16px; align-items: flex-start; flex-direction: column; gap: 8px; }
+}

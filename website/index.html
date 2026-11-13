@@ -1,8 +1,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hoploom — Shared SSH Workspace for You and Your Agent</title>
-<meta name="description" content="One local SSH workspace for both you and your AI Agent. You control hosts and approvals. Agent executes with context, not secrets.">
+<title>Hoploom — A Local Signal Path for Every Host</title>
+<meta name="description" content="A local-first SSH workspace that turns hosts, approvals, credentials, and Agent skills into one observable path.">
 <meta name="theme-color" content="#000000">
+<link rel="stylesheet" href="assets/semantic-map.css">
 <style>
 /* Design Tokens */
 :root {
@@ -31,7 +32,6 @@
   --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.8);
   --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Aliases consumed by the embedded product demo below. */
   --page-soft: #0a0a0a;
   --panel: #111111;
   --ink: #fafafa;
@@ -68,8 +68,6 @@ img { max-width: 100%; height: auto; display: block; }
 [hidden] { display: none !important; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* Bilingual copy: one language is painted, the other stays in the DOM.
-   Scoped to body so the switch can never blank the document root. */
 body [lang="zh-CN"] { display: none; }
 html[data-lang="zh"] body [lang="zh-CN"] { display: revert; }
 html[data-lang="zh"] body [lang="en"] { display: none; }
@@ -91,7 +89,6 @@ html[data-lang="zh"] body [lang="en"] { display: none; }
   margin: 0 auto;
   padding: 0 32px;
 }
-/* The demo shell is information-dense; give it the full width it was drawn for. */
 .container-wide {
   max-width: 1460px;
   margin: 0 auto;
@@ -190,9 +187,17 @@ html[data-lang="zh"] body [lang="en"] { display: none; }
 
 /* Hero */
 .hero {
-  padding: 120px 0 64px;
-  text-align: center;
+  padding: 104px 0 76px;
+  text-align: left;
+  overflow: hidden;
 }
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  align-items: center;
+  gap: clamp(40px, 7vw, 104px);
+}
+.hero-copy { position: relative; z-index: 2; }
 .hero-badge {
   display: inline-flex;
   padding: 6px 12px;
@@ -207,9 +212,9 @@ html[data-lang="zh"] body [lang="en"] { display: none; }
   margin-bottom: 24px;
 }
 .hero h1 {
-  max-width: 900px;
-  margin: 0 auto 24px;
-  font-size: clamp(48px, 6vw, 80px);
+  max-width: 650px;
+  margin: 0 0 24px;
+  font-size: clamp(46px, 6vw, 78px);
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.04em;
@@ -218,18 +223,18 @@ html[data-lang="zh"] body [lang="en"] { display: none; }
   color: var(--text-secondary);
 }
 .hero-description {
-  max-width: 640px;
-  margin: 0 auto 40px;
+  max-width: 600px;
+  margin: 0 0 36px;
   color: var(--text-secondary);
   font-size: 18px;
   line-height: 1.6;
 }
 .hero-actions {
   display: flex;
-  justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
 }
+
 
 /* Demo section */
 .product-section { padding: 0 0 64px; }
@@ -280,7 +285,6 @@ html[data-lang="zh"] body [lang="en"] { display: none; }
   text-align: right;
 }
 
-/* --- Product demo shell (ported from the previous site) --- */
 .demo-shell{
 --d-bg:#0a0a0a;
 --d-sidebar:#050505;
@@ -722,6 +726,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
   .nav-links { flex-wrap: wrap; gap: 12px; }
   .dsh-section { scroll-margin-top: 160px; }
   .hero { padding: 80px 0 48px; }
+  .hero-grid { grid-template-columns: 1fr; gap: 40px; }
   .hero h1 { font-size: 40px; }
   .demo-section { padding-bottom: 64px; }
   .cta { padding: 24px 0 80px; }
@@ -773,20 +778,31 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
 
 <main id="top">
   <section class="hero">
-    <div class="container">
-      <div class="hero-badge"><span lang="en">Human + Agent SSH workspace</span><span lang="zh-CN">用户与 Agent 共用的 SSH 工作区</span></div>
-      <h1>
-        <span lang="en">One shared <span class="hero-dim">SSH workspace.</span><br>You and your Agent.</span>
-        <span lang="zh-CN">你和 Agent，<span class="hero-dim">共用 SSH 工作区。</span></span>
-      </h1>
-      <p class="hero-description">
-        <span lang="en">You control hosts and approvals. Your Agent executes with context, not secrets. Everything stays local. No credentials enter the chat.</span>
-        <span lang="zh-CN">主机范围与授权由你掌控；Agent 拿到的是执行上下文，而不是原始秘密。全部在本地运行，凭据不会进入对话。</span>
-      </p>
-      <div class="hero-actions">
-        <a class="btn btn-primary" href="docs/quickstart.html"><span lang="en">Get started</span><span lang="zh-CN">快速开始</span> <span aria-hidden="true">→</span></a>
-        <button class="btn open-agent-dialog" type="button"><span lang="en">Install with your Agent</span><span lang="zh-CN">让 Agent 帮我安装</span></button>
-        <a class="btn" href="#demo"><span lang="en">Try the demo</span><span lang="zh-CN">体验演示</span> <span aria-hidden="true">↓</span></a>
+    <div class="container-wide hero-grid">
+      <div class="hero-copy">
+        <div class="hero-badge"><span lang="en">Human + Agent SSH workspace</span><span lang="zh-CN">用户与 Agent 共用的 SSH 工作区</span></div>
+        <h1>
+          <span lang="en">A local <span class="hero-dim">signal path</span><br>for every host.</span>
+          <span lang="zh-CN">每台主机，<span class="hero-dim">都有一条本地信号路径。</span></span>
+        </h1>
+        <p class="hero-description">
+          <span lang="en">Hoploom turns hosts, approvals, credentials, and Agent skills into one observable path. The Agent gets context to act, while secrets stay in your vault.</span>
+          <span lang="zh-CN">Hoploom 把主机、授权、凭据和 Agent 技能变成一条可观察路径。Agent 拿到执行上下文，秘密始终留在本机保险库。</span>
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="docs/quickstart.html"><span lang="en">Get started</span><span lang="zh-CN">快速开始</span> <span aria-hidden="true">→</span></a>
+          <button class="btn open-agent-dialog" type="button"><span lang="en">Install with your Agent</span><span lang="zh-CN">让 Agent 帮我安装</span></button>
+          <a class="btn" href="#demo"><span lang="en">Trace the demo</span><span lang="zh-CN">查看互动演示</span> <span aria-hidden="true">↓</span></a>
+        </div>
+      </div>
+
+      <div class="semantic-map" id="semanticMap" aria-label="Signal map">
+        <canvas id="semanticCanvas" aria-hidden="true"></canvas>
+        <button class="map-node active" type="button" data-flow-step="substrate" aria-pressed="true"><span>substrate</span></button>
+        <button class="map-node" type="button" data-flow-step="propose" aria-pressed="false"><span>propose</span></button>
+        <button class="map-node" type="button" data-flow-step="verified" aria-pressed="false"><span>verified</span></button>
+        <button class="map-node" type="button" data-flow-step="unresolved" aria-pressed="false"><span>unresolved</span></button>
+        <div class="map-readout"><span><strong id="semanticReadout">SUBSTRATE READY</strong> · <code id="semanticCode">vault://local/host-context</code></span><span class="map-legend"><span><i></i>verified</span><span><i class="unresolved-dot"></i>unresolved</span></span></div>
       </div>
     </div>
   </section>
@@ -1011,6 +1027,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.75); }
   <div class="dsh-image-scroll"><img id="dshImagePreview" src="assets/dsh-hosts.jpg" alt=""></div>
 </dialog>
 
+<script src="assets/semantic-map.js"></script>
 <script>
 (function () {
 var root = document.documentElement;
