@@ -15,8 +15,8 @@ provided the starting point for the complete upgrade.
 - [x] Doctor/CLI/Skill/API documentation and generated contracts/assets.
 - [x] Full behavioral, cancellation, packaging and browser regressions; review against every requirement.
 - [x] Publish GitHub native release 0.12.1 and npm plugin 0.3.1 from the same commit.
-- [ ] Configure the `hoploom` PyPI Trusted Publisher and retry the failed upload.
-- [ ] Prepare and validate the Homebrew update from PyPI's actual sdist.
+- [x] Configure the `hoploom` PyPI Trusted Publisher and publish the verified release.
+- [x] Prepare, test and publish the Homebrew formula and platform bottles from PyPI's actual sdist.
 
 ## Implementation evidence
 
@@ -55,14 +55,28 @@ The final tarball installed and composed successfully in an isolated real dsh
 profile. Its UI/client/bridge files are byte-identical to the previously
 reviewed real-dsh UI build, so those visual observations remain valid.
 
-Remaining delivery requires the PyPI account configuration. [The PyPI upload](https://github.com/xiayh0107/hoploom/actions/runs/43332673316)
-passed every build check but returned `invalid-publisher`: no Trusted Publisher
-matches the new project. Configure a pending publisher on PyPI with project
-`hoploom`, GitHub owner `xiayh0107`, repository `hoploom`, workflow `publish.yml`
-and environment `pypi`, then rerun the failed publishing job. Homebrew must wait
-for the actual PyPI sdist; render its URL/hash with `prepare_packaging`, update
-the build/runtime resources and open the tap PR with the formula rename mapping.
-The checklist stays incomplete until those steps are delivered.
+The PyPI pending publisher was registered for project `hoploom`, owner
+`xiayh0107`, repository `hoploom`, workflow `publish.yml` and environment
+`pypi`. Rerun [publish workflow 43332673316](https://github.com/xiayh0107/hoploom/actions/runs/43332673316)
+completed successfully; PyPI now serves all eight native wheels and
+`hoploom-0.12.1.tar.gz`. The actual sdist URL is
+`https://files.pythonhosted.org/packages/6a/2d/e2d43577eceacb26ccaa4b8fc5c19d6b2c905a6677f1b4cc906bcee26ac7/hoploom-0.12.1.tar.gz`
+with SHA-256
+`cdd4d83ea54166836c5116723cd5fc1b1fa62b92b0176737915ba19da1628d3a`; it
+matched the 223-file release candidate byte-for-byte.
+
+[Homebrew tap PR #3](https://github.com/xiayh0107/homebrew-tap/pull/3) passed
+the macOS 26, macOS 15 and Linux `brew test-bot` jobs in
+[run 43495622465](https://github.com/xiayh0107/homebrew-tap/actions/runs/43495622465)
+and was merged. The formula keeps 34 macOS resources plus the Linux-only
+`jeepney` and `secretstorage` resources, with `maturin==1.16.0` recorded in
+`pypi_packages`. Homebrew style and online audit passed, and a real bottle
+fetch succeeded. The tap's bottle release
+[hoploom-0.12.1](https://github.com/xiayh0107/homebrew-tap/releases/tag/hoploom-0.12.1)
+contains arm64 Sequoia, arm64 Tahoe and x86_64 Linux bottles; the bottle stanza
+is on tap main at commit `86d6ed50d874e6aa8f0d277acc00bd82e691ed55`.
+
+All checklist items are now delivered and verified.
 
 # Hoploom 性能与交互体验升级计划
 
